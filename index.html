@@ -307,13 +307,15 @@
       '법곳동': { lat: 37.6681, lng: 126.7321, level: 5 }
     };
 
-    // 카테고리별 마커 색상 설정 (카페: 분홍색 #FF6B81)
     const categoryColors = {
       '식당': '#4D96FF',
       '카페': '#FF6B81',
       '소품샵': '#FFD93D',
       '서점': '#6BCB77'
     };
+
+    // 소품샵 탭 전용 제외 키워드 목록 (인테리어 시공, 커튼, 철물, 공사 등 필터링)
+    const excludeKeywords = ['인테리어', '철물', '커튼', '블라인드', '조명', '설비', '공사', '자재', '원단', '가구', '타일', '지붕', '창호', '샤시'];
 
     window.onload = function() {
       initMap();
@@ -417,7 +419,13 @@
       accumulatedPlaces = [];
       document.getElementById('resultSummary').textContent = '현재 화면에서 장소를 검색 중입니다...';
 
-      let searchKeyword = searchInput !== '' ? `${searchInput} ${currentCategory}` : currentCategory;
+      // 소품샵 탭일 경우 검색 키워드를 더 풍성하게 변환 ('소품샵' 단독 검색 문제 해결)
+      let targetCategory = currentCategory;
+      if (currentCategory === '소품샵') {
+        targetCategory = '소품샵';
+      }
+
+      let searchKeyword = searchInput !== '' ? `${searchInput} ${targetCategory}` : targetCategory;
 
       const searchOptions = {
         bounds: kakaoMap.getBounds(),
@@ -432,7 +440,22 @@
       const selectedDistrict = document.getElementById('districtSelect').value;
 
       if (status === kakao.maps.services.Status.OK && data && data.length > 0) {
-        accumulatedPlaces = accumulatedPlaces.concat(data);
+        // 소품샵 탭인 경우 철물, 인테리어, 공사 업종을 자동 걸러냄
+        let filteredData = data;
+        if (currentCategory === '소품샵') {
+          filteredData = data.filter(place => {
+            const categoryName = place.category_name || '';
+            const placeName = place.place_name || '';
+            
+            // 제외 키워드 중 하나라도 들어있으면 목록에서 제거
+            const isExcluded = excludeKeywords.some(keyword => 
+              categoryName.includes(keyword) || placeName.includes(keyword)
+            );
+            return !isExcluded;
+          });
+        }
+
+        accumulatedPlaces = accumulatedPlaces.concat(filteredData);
 
         if (pagination.hasNextPage && accumulatedPlaces.length < 45) {
           pagination.nextPage();
