@@ -270,6 +270,7 @@
     let currentCategory = '식당';
     let mapMarkers = [];
     let accumulatedPlaces = [];
+    let isDistrictChanging = false; // 동네 변경 시 지도 이동 이벤트 중복 방지 플래그
 
     const districtCoordinates = {
       '전체': { lat: 37.6583599, lng: 126.8320001, level: 7 },
@@ -328,6 +329,13 @@
       placeSearchService = new kakao.maps.services.Places();
       infoWindow = new kakao.maps.InfoWindow({ zIndex: 1 });
 
+      // 지도 이동 또는 확대/축소가 끝났을 때(idle 이벤트) 현재 화면 기준 자동 재검색
+      kakao.maps.event.addListener(kakaoMap, 'idle', function() {
+        if (!isDistrictChanging) {
+          searchPlacesByBounds();
+        }
+      });
+
       searchPlaces();
     }
 
@@ -374,58 +382,72 @@
       searchPlaces();
     }
 
+    // 동네/키워드 선택 시 최초 검색 (해당 동네로 지도 이동)
     function searchPlaces() {
       const selectedDistrict = document.getElementById('districtSelect').value;
-      const searchInput = document.getElementById('searchInput').value.trim();
       
-      removeMarkers();
-      clearPlaceList();
-      accumulatedPlaces = [];
-      document.getElementById('resultSummary').textContent = '장소를 검색 중입니다...';
+      isDistrictChanging = true; // 지도 이동 중 idle 이벤트 중복 호출 방지
 
       if (selectedDistrict !== '전체' && districtCoordinates[selectedDistrict]) {
         const coord = districtCoordinates[selectedDistrict];
         const centerLatLng = new kakao.maps.LatLng(coord.lat, coord.lng);
         kakaoMap.setLevel(coord.level);
-        kakaoMap.panTo(centerLatLng);
+        kakaoMap.setCenter(centerLatLng);
       }
 
-      let searchKeyword = '고양시';
-
-      if (selectedDistrict !== '전체') {
-        searchKeyword += ` ${selectedDistrict}`;
-      }
-
-      if (searchInput !== '') {
-        searchKeyword += ` ${searchInput}`;
-      }
-
-      searchKeyword += ` ${currentCategory}`;
-
-      placeSearchService.keywordSearch(searchKeyword, placesSearchCallback, { size: 15 });
+      // 지도 이동 완료 후 화면 범위 기반 검색 수행
+      setTimeout(function() {
+        isDistrictChanging = false;
+        searchPlacesByBounds();
+      }, 300);
     }
 
-    // 콜백 함수 핵심 수정 (45개 수집 및 검색 상태 업데이트 보장)
+    // 현재 지도의 화면 범위(Bounds) 안에서 장소 검색
+    function searchPlacesByBounds() {
+      const selectedDistrict = document.getElementById('districtSelect').value;
+      const searchInput = document.getElementById('searchInput').value.trim();
+
+      removeMarkers();
+      clearPlaceList();
+      accumulatedPlaces = [];
+      document.getElementById('resultSummary').textContent = '현재 화면에서 장소를 검색 중입니다...';
+
+      let searchKeyword = '';
+      if (searchInput !== '') {
+        searchKeyword = `${searchInput} ${currentCategory}`;
+      } else {
+        searchKeyword = currentCategory;
+      }
+
+      // bounds: 지도의 현재 표시 영역, useMapBounds: 영역 내 검색 사용
+      const searchOptions = {
+        bounds: kakaoMap.getBounds(),
+        useMapBounds: true,
+        size: 15
+      };
+
+      placeSearchService.keywordSearch(searchKeyword, placesSearchCallback, searchOptions);
+    }
+
     function placesSearchCallback(data, status, pagination) {
       const selectedDistrict = document.getElementById('districtSelect').value;
 
       if (status === kakao.maps.services.Status.OK && data && data.length > 0) {
         accumulatedPlaces = accumulatedPlaces.concat(data);
 
-        // 다음 페이지가 존재하고, 아직 45개 미만으로 모였다면 다음 페이지 호출
+        // 현재 화면 안에서도 최대 45개까지 누적
         if (pagination.hasNextPage && accumulatedPlaces.length < 45) {
           pagination.nextPage();
-          return; // 더 불러와야 하므로 여기서 함수 종료
+          return;
         }
       }
 
-      // 45개가 다 채워졌거나, 더 이상 불러올 페이지가 없을 때 최종 화면 표시
       if (accumulatedPlaces.length > 0) {
-        document.getElementById('resultSummary').textContent = `[${selectedDistrict}] 내 ${currentCategory} ${accumulatedPlaces.length}곳 발견`;
+        document.getElementById('resultSummary').textContent = `현재 지도 화면 내 ${currentCategory} ${accumulatedPlaces.length}곳 발견`;
         displayPlaceList(accumulatedPlaces);
         displayMarkers(accumulatedPlaces);
       } else {
-        document.getElementById('resultSummary').textContent = `[${selectedDistrict}] 내 ${currentCategory} 검색 결과가 없습니다.`;
+        document.getElementById('resultSummary').textContent = `현재 지도 화면 내 ${currentCategory} 검색 결과가 없습니다.`;
         clearPlaceList();
         removeMarkers();
       }
@@ -460,7 +482,6 @@
     }
 
     function displayMarkers(places) {
-      const bounds = new kakao.maps.LatLngBounds();
       const currentColorHex = categoryColors[currentCategory] || '#4D96FF';
       const markerImage = createCustomMarkerImage(currentColorHex);
 
@@ -478,12 +499,7 @@
         });
 
         mapMarkers.push(marker);
-        bounds.extend(placePosition);
       });
-
-      if (places.length > 0) {
-        kakaoMap.setBounds(bounds);
-      }
     }
 
     function removeMarkers() {
