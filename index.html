@@ -9,7 +9,6 @@
   <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=b3c1b3d89c3faba562c87e2765978f03&libraries=services"></script>
 
   <style>
-    /* 기본 리셋 CSS */
     * {
       box-sizing: border-box;
       margin: 0;
@@ -23,14 +22,12 @@
       overflow: hidden;
     }
 
-    /* 1:3 비율 레이아웃 (Flexbox) */
     .container {
       display: flex;
       width: 100vw;
       height: 100vh;
     }
 
-    /* 왼쪽 사이드바 (약 1 비율) */
     .sidebar {
       flex: 1;
       min-width: 280px;
@@ -42,7 +39,6 @@
       z-index: 10;
     }
 
-    /* 서비스 이름 헤더 */
     .sidebar-header {
       padding: 18px 16px;
       background-color: #3c1e1e;
@@ -57,7 +53,6 @@
       color: #ffeb00;
     }
 
-    /* 4개 카테고리 탭 영역 */
     .tabs {
       display: flex;
       background-color: #ffffff;
@@ -79,7 +74,6 @@
       background-color: #f1f3f5;
     }
 
-    /* 활성화된 탭 스타일 */
     .tab-button.active {
       font-weight: bold;
       color: #000000;
@@ -87,7 +81,6 @@
       background-color: #f8f9fa;
     }
 
-    /* 동네 선택 필터 영역 */
     .district-box {
       padding: 10px 12px 0 12px;
       background-color: #ffffff;
@@ -109,7 +102,6 @@
       border-color: #3c1e1e;
     }
 
-    /* 검색창 영역 */
     .search-box {
       display: flex;
       padding: 10px 12px;
@@ -141,7 +133,6 @@
       font-size: 0.9rem;
     }
 
-    /* 검색 결과 안내창 */
     .result-summary {
       padding: 8px 12px;
       font-size: 0.8rem;
@@ -150,7 +141,6 @@
       border-bottom: 1px solid #dee2e6;
     }
 
-    /* 장소 목록 영역 */
     .place-list {
       flex: 1;
       overflow-y: auto;
@@ -183,7 +173,6 @@
       color: #868e96;
     }
 
-    /* 오른쪽 지도 영역 (약 3 비율) */
     .map-container {
       flex: 3;
       height: 100%;
@@ -199,14 +188,11 @@
 <body>
 
   <div class="container">
-    <!-- 왼쪽 사이드바 -->
     <div class="sidebar">
-      <!-- 서비스 이름 -->
       <div class="sidebar-header">
         📍 <span>LOCALIT</span> 지도
       </div>
 
-      <!-- 4개 카테고리 탭 -->
       <div class="tabs">
         <button class="tab-button active" onclick="selectTab('식당')">식당</button>
         <button class="tab-button" onclick="selectTab('카페')">카페</button>
@@ -214,7 +200,6 @@
         <button class="tab-button" onclick="selectTab('서점')">서점</button>
       </div>
 
-      <!-- 고양시 동네 선택 드롭다운 -->
       <div class="district-box">
         <select id="districtSelect" class="district-select" onchange="handleDistrictChange()">
           <option value="전체">고양시 전체</option>
@@ -261,21 +246,262 @@
         </select>
       </div>
 
-      <!-- 검색창 -->
       <div class="search-box">
         <input type="text" id="searchInput" class="search-input" placeholder="장소/키워드 입력 (선택)" onkeyup="handleKeyPress(event)">
         <button class="search-button" onclick="executeSearch()">검색</button>
       </div>
 
-      <!-- 결과 수 요약 안내창 -->
       <div id="resultSummary" class="result-summary">
         검색 진행 중...
       </div>
 
-      <!-- 검색 결과 리스트 -->
-      <div id="placeList" class="place-list">
-        <!-- JS로 검색된 장소 목록이 들어옵니다. -->
-      </div>
+      <div id="placeList" class="place-list"></div>
     </div>
 
-    <!-- 오른쪽 지도 영역 -->
+    <div class="map-container">
+      <div id="map"></div>
+    </div>
+  </div>
+
+  <script>
+    let kakaoMap = null;
+    let placeSearchService = null;
+    let infoWindow = null;
+    let currentCategory = '식당';
+    let mapMarkers = [];
+    let accumulatedPlaces = [];
+
+    const districtCoordinates = {
+      '전체': { lat: 37.6583599, lng: 126.8320001, level: 7 },
+      '화정동': { lat: 37.6353, lng: 126.8322, level: 4 },
+      '행신동': { lat: 37.6148, lng: 126.8341, level: 4 },
+      '삼송동': { lat: 37.6521, lng: 126.8953, level: 4 },
+      '원흥동': { lat: 37.6499, lng: 126.8722, level: 4 },
+      '지축동': { lat: 37.6534, lng: 126.9082, level: 4 },
+      '원당동': { lat: 37.6698, lng: 126.8521, level: 5 },
+      '향동동': { lat: 37.6001, lng: 126.8988, level: 4 },
+      '덕은동': { lat: 37.5852, lng: 126.8831, level: 4 },
+      '주교동': { lat: 37.6562, lng: 126.8083, level: 4 },
+      '성사동': { lat: 37.6541, lng: 126.8371, level: 4 },
+      '신원동': { lat: 37.6685, lng: 126.8872, level: 4 },
+      '고양동': { lat: 37.7011, lng: 126.9025, level: 5 },
+      '관산동': { lat: 37.6961, lng: 126.8611, level: 5 },
+      '도내동': { lat: 37.6322, lng: 126.8621, level: 4 },
+      '동산동': { lat: 37.6433, lng: 126.8922, level: 4 },
+      '장항동': { lat: 37.6582, lng: 126.7712, level: 4 },
+      '정발산동': { lat: 37.6672, lng: 126.7821, level: 4 },
+      '백석동': { lat: 37.6421, lng: 126.7882, level: 4 },
+      '마두동': { lat: 37.6521, lng: 126.7822, level: 4 },
+      '중산동': { lat: 37.6851, lng: 126.7782, level: 4 },
+      '식사동': { lat: 37.6781, lng: 126.8121, level: 4 },
+      '풍동': { lat: 37.6681, lng: 126.7981, level: 4 },
+      '성석동': { lat: 37.6981, lng: 126.7811, level: 5 },
+      '가좌동': { lat: 37.6912, lng: 126.7282, level: 4 },
+      '주엽동': { lat: 37.6701, lng: 126.7611, level: 4 },
+      '대화동': { lat: 37.6761, lng: 126.7481, level: 4 },
+      '탄현동': { lat: 37.6941, lng: 126.7631, level: 4 },
+      '덕이동': { lat: 37.6981, lng: 126.7421, level: 5 },
+      '일산동': { lat: 37.6861, lng: 126.7711, level: 4 },
+      '구산동': { lat: 37.7081, lng: 126.7112, level: 5 },
+      '법곳동': { lat: 37.6681, lng: 126.7321, level: 5 }
+    };
+
+    const categoryColors = {
+      '식당': '#4D96FF',
+      '카페': '#4D96FF',
+      '소품샵': '#FFD93D',
+      '서점': '#6BCB77'
+    };
+
+    window.onload = function() {
+      initMap();
+    };
+
+    function initMap() {
+      const mapContainer = document.getElementById('map');
+      const mapOptions = {
+        center: new kakao.maps.LatLng(37.6583599, 126.8320001),
+        level: 5
+      };
+
+      kakaoMap = new kakao.maps.Map(mapContainer, mapOptions);
+      placeSearchService = new kakao.maps.services.Places();
+      infoWindow = new kakao.maps.InfoWindow({ zIndex: 1 });
+
+      searchPlaces();
+    }
+
+    function createCustomMarkerImage(colorHex) {
+      const svgMarker = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="30" height="40" viewBox="0 0 24 32">
+          <path fill="${colorHex}" stroke="#FFFFFF" stroke-width="1.5" d="M12 0C5.37 0 0 5.37 0 12c0 9 12 20 12 20s12-11 12-20c0-6.63-5.37-12-12-12z"/>
+          <circle cx="12" cy="11" r="4.5" fill="#FFFFFF"/>
+        </svg>
+      `;
+
+      const imageSrc = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgMarker);
+      const imageSize = new kakao.maps.Size(30, 40);
+      const imageOption = { offset: new kakao.maps.Point(15, 40) };
+
+      return new kakao.maps.MarkerImage(imageSrc, imageSize, imageOption);
+    }
+
+    function selectTab(categoryName) {
+      currentCategory = categoryName;
+
+      const tabButtons = document.querySelectorAll('.tab-button');
+      tabButtons.forEach(button => {
+        button.classList.remove('active');
+        if (button.textContent === categoryName) {
+          button.classList.add('active');
+        }
+      });
+
+      searchPlaces();
+    }
+
+    function handleDistrictChange() {
+      searchPlaces();
+    }
+
+    function handleKeyPress(event) {
+      if (event.key === 'Enter') {
+        executeSearch();
+      }
+    }
+
+    function executeSearch() {
+      searchPlaces();
+    }
+
+    function searchPlaces() {
+      const selectedDistrict = document.getElementById('districtSelect').value;
+      const searchInput = document.getElementById('searchInput').value.trim();
+      
+      removeMarkers();
+      clearPlaceList();
+      accumulatedPlaces = [];
+      document.getElementById('resultSummary').textContent = '장소를 검색 중입니다...';
+
+      if (selectedDistrict !== '전체' && districtCoordinates[selectedDistrict]) {
+        const coord = districtCoordinates[selectedDistrict];
+        const centerLatLng = new kakao.maps.LatLng(coord.lat, coord.lng);
+        kakaoMap.setLevel(coord.level);
+        kakaoMap.panTo(centerLatLng);
+      }
+
+      let searchKeyword = '고양시';
+
+      if (selectedDistrict !== '전체') {
+        searchKeyword += ` ${selectedDistrict}`;
+      }
+
+      if (searchInput !== '') {
+        searchKeyword += ` ${searchInput}`;
+      }
+
+      searchKeyword += ` ${currentCategory}`;
+
+      placeSearchService.keywordSearch(searchKeyword, placesSearchCallback, { size: 15 });
+    }
+
+    // 콜백 함수 핵심 수정 (45개 수집 및 검색 상태 업데이트 보장)
+    function placesSearchCallback(data, status, pagination) {
+      const selectedDistrict = document.getElementById('districtSelect').value;
+
+      if (status === kakao.maps.services.Status.OK && data && data.length > 0) {
+        accumulatedPlaces = accumulatedPlaces.concat(data);
+
+        // 다음 페이지가 존재하고, 아직 45개 미만으로 모였다면 다음 페이지 호출
+        if (pagination.hasNextPage && accumulatedPlaces.length < 45) {
+          pagination.nextPage();
+          return; // 더 불러와야 하므로 여기서 함수 종료
+        }
+      }
+
+      // 45개가 다 채워졌거나, 더 이상 불러올 페이지가 없을 때 최종 화면 표시
+      if (accumulatedPlaces.length > 0) {
+        document.getElementById('resultSummary').textContent = `[${selectedDistrict}] 내 ${currentCategory} ${accumulatedPlaces.length}곳 발견`;
+        displayPlaceList(accumulatedPlaces);
+        displayMarkers(accumulatedPlaces);
+      } else {
+        document.getElementById('resultSummary').textContent = `[${selectedDistrict}] 내 ${currentCategory} 검색 결과가 없습니다.`;
+        clearPlaceList();
+        removeMarkers();
+      }
+    }
+
+    function displayPlaceList(places) {
+      const listContainer = document.getElementById('placeList');
+      clearPlaceList();
+
+      places.forEach((place, index) => {
+        const itemElement = document.createElement('div');
+        itemElement.className = 'place-item';
+        
+        itemElement.innerHTML = `
+          <div class="place-title">${index + 1}. ${place.place_name}</div>
+          <div class="place-address">${place.road_address_name || place.address_name}</div>
+        `;
+
+        itemElement.onclick = function() {
+          const moveLatLng = new kakao.maps.LatLng(place.y, place.x);
+          kakaoMap.panTo(moveLatLng);
+          openInfoWindow(mapMarkers[index], place);
+        };
+
+        listContainer.appendChild(itemElement);
+      });
+    }
+
+    function clearPlaceList() {
+      const listContainer = document.getElementById('placeList');
+      listContainer.innerHTML = '';
+    }
+
+    function displayMarkers(places) {
+      const bounds = new kakao.maps.LatLngBounds();
+      const currentColorHex = categoryColors[currentCategory] || '#4D96FF';
+      const markerImage = createCustomMarkerImage(currentColorHex);
+
+      places.forEach((place, index) => {
+        const placePosition = new kakao.maps.LatLng(place.y, place.x);
+        
+        const marker = new kakao.maps.Marker({
+          position: placePosition,
+          image: markerImage,
+          map: kakaoMap
+        });
+
+        kakao.maps.event.addListener(marker, 'click', function() {
+          openInfoWindow(marker, place);
+        });
+
+        mapMarkers.push(marker);
+        bounds.extend(placePosition);
+      });
+
+      if (places.length > 0) {
+        kakaoMap.setBounds(bounds);
+      }
+    }
+
+    function removeMarkers() {
+      mapMarkers.forEach(marker => marker.setMap(null));
+      mapMarkers = [];
+    }
+
+    function openInfoWindow(marker, place) {
+      const address = place.road_address_name || place.address_name;
+      const content = `
+        <div style="padding:8px 12px;font-size:12px;color:#333;max-width:220px;">
+          <div style="font-weight:bold;font-size:13px;margin-bottom:3px;color:#000;">${place.place_name}</div>
+          <div style="font-size:11px;color:#666;line-height:1.3;">${address}</div>
+        </div>
+      `;
+      infoWindow.setContent(content);
+      infoWindow.open(kakaoMap, marker);
+    }
+  </script>
+</body>
+</html>
