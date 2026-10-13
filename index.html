@@ -270,7 +270,7 @@
     let currentCategory = '식당';
     let mapMarkers = [];
     let accumulatedPlaces = [];
-    let isDistrictChanging = false; // 동네 변경 시 지도 이동 이벤트 중복 방지 플래그
+    let isDistrictChanging = false;
 
     const districtCoordinates = {
       '전체': { lat: 37.6583599, lng: 126.8320001, level: 7 },
@@ -327,9 +327,18 @@
 
       kakaoMap = new kakao.maps.Map(mapContainer, mapOptions);
       placeSearchService = new kakao.maps.services.Places();
-      infoWindow = new kakao.maps.InfoWindow({ zIndex: 1 });
+      
+      // 인포윈도우(팝업) 초기화 (removable: true 옵션으로 닫기 버튼 추가)
+      infoWindow = new kakao.maps.InfoWindow({ 
+        zIndex: 2,
+        removable: true 
+      });
 
-      // 지도 이동 또는 확대/축소가 끝났을 때(idle 이벤트) 현재 화면 기준 자동 재검색
+      // 지도 배경 클릭 시 팝업 닫기
+      kakao.maps.event.addListener(kakaoMap, 'click', function() {
+        infoWindow.close();
+      });
+
       kakao.maps.event.addListener(kakaoMap, 'idle', function() {
         if (!isDistrictChanging) {
           searchPlacesByBounds();
@@ -382,11 +391,11 @@
       searchPlaces();
     }
 
-    // 동네/키워드 선택 시 최초 검색 (해당 동네로 지도 이동)
     function searchPlaces() {
       const selectedDistrict = document.getElementById('districtSelect').value;
       
-      isDistrictChanging = true; // 지도 이동 중 idle 이벤트 중복 호출 방지
+      isDistrictChanging = true;
+      infoWindow.close(); // 새로운 검색 시 기존 팝업 닫기
 
       if (selectedDistrict !== '전체' && districtCoordinates[selectedDistrict]) {
         const coord = districtCoordinates[selectedDistrict];
@@ -395,16 +404,13 @@
         kakaoMap.setCenter(centerLatLng);
       }
 
-      // 지도 이동 완료 후 화면 범위 기반 검색 수행
       setTimeout(function() {
         isDistrictChanging = false;
         searchPlacesByBounds();
       }, 300);
     }
 
-    // 현재 지도의 화면 범위(Bounds) 안에서 장소 검색
     function searchPlacesByBounds() {
-      const selectedDistrict = document.getElementById('districtSelect').value;
       const searchInput = document.getElementById('searchInput').value.trim();
 
       removeMarkers();
@@ -412,14 +418,8 @@
       accumulatedPlaces = [];
       document.getElementById('resultSummary').textContent = '현재 화면에서 장소를 검색 중입니다...';
 
-      let searchKeyword = '';
-      if (searchInput !== '') {
-        searchKeyword = `${searchInput} ${currentCategory}`;
-      } else {
-        searchKeyword = currentCategory;
-      }
+      let searchKeyword = searchInput !== '' ? `${searchInput} ${currentCategory}` : currentCategory;
 
-      // bounds: 지도의 현재 표시 영역, useMapBounds: 영역 내 검색 사용
       const searchOptions = {
         bounds: kakaoMap.getBounds(),
         useMapBounds: true,
@@ -435,7 +435,6 @@
       if (status === kakao.maps.services.Status.OK && data && data.length > 0) {
         accumulatedPlaces = accumulatedPlaces.concat(data);
 
-        // 현재 화면 안에서도 최대 45개까지 누적
         if (pagination.hasNextPage && accumulatedPlaces.length < 45) {
           pagination.nextPage();
           return;
@@ -494,6 +493,7 @@
           map: kakaoMap
         });
 
+        // 마커 클릭 시 팝업 렌더링
         kakao.maps.event.addListener(marker, 'click', function() {
           openInfoWindow(marker, place);
         });
@@ -507,14 +507,31 @@
       mapMarkers = [];
     }
 
+    // 마커 클릭 시 정보 팝업창을 디자인하는 함수
     function openInfoWindow(marker, place) {
       const address = place.road_address_name || place.address_name;
+      const phone = place.phone ? place.phone : '전화번호 정보 없음';
+      const placeUrl = place.place_url; // 카카오맵 장소 상세 페이지 링크
+
       const content = `
-        <div style="padding:8px 12px;font-size:12px;color:#333;max-width:220px;">
-          <div style="font-weight:bold;font-size:13px;margin-bottom:3px;color:#000;">${place.place_name}</div>
-          <div style="font-size:11px;color:#666;line-height:1.3;">${address}</div>
+        <div style="padding: 12px; font-size: 12px; line-height: 1.5; min-width: 200px; max-width: 240px; color: #333;">
+          <div style="font-weight: bold; font-size: 14px; color: #3c1e1e; margin-bottom: 6px; border-bottom: 1px solid #eee; padding-bottom: 4px;">
+            ${place.place_name}
+          </div>
+          <div style="margin-bottom: 4px; color: #555;">
+            📍 ${address}
+          </div>
+          <div style="margin-bottom: 8px; color: #777; font-size: 11px;">
+            📞 ${phone}
+          </div>
+          <div style="text-align: right;">
+            <a href="${placeUrl}" target="_blank" style="display: inline-block; padding: 4px 8px; background-color: #ffeb00; color: #3c1e1e; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 11px;">
+              상세보기 ➔
+            </a>
+          </div>
         </div>
       `;
+
       infoWindow.setContent(content);
       infoWindow.open(kakaoMap, marker);
     }
