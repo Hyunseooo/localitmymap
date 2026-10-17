@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LOCALIT 지도 & 챗봇</title>
+  <title>LOCALIT 지도 & AI 챗봇</title>
   <!-- 카카오맵 JavaScript API (services 라이브러리 포함) -->
   <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=b3c1b3d89c3faba562c87e2765978f03&libraries=services"></script>
   
@@ -184,7 +184,7 @@
       height: 100%;
     }
 
-    /* ================= 챗봇 스타일 추가 ================= */
+    /* 챗봇 스타일 */
     .chat-toggle-btn {
       position: absolute;
       bottom: 25px;
@@ -225,10 +225,6 @@
       border: 1px solid #e9ecef;
     }
 
-    .chat-window.active {
-      display: flex;
-    }
-
     .chat-header {
       background-color: #3c1e1e;
       color: #ffffff;
@@ -263,7 +259,7 @@
     }
 
     .chat-bubble {
-      max-width: 80%;
+      max-width: 85%;
       padding: 10px 12px;
       border-radius: 10px;
       font-size: 0.85rem;
@@ -332,7 +328,6 @@
       <div class="district-box">
         <select id="districtSelect" class="district-select" onchange="handleDistrictChange()">
           <option value="전체">고양시 전체</option>
-          
           <optgroup label="덕양구">
             <option value="화정동">덕양구 화정동</option>
             <option value="행신동">덕양구 행신동</option>
@@ -350,7 +345,6 @@
             <option value="도내동">덕양구 도내동</option>
             <option value="동산동">덕양구 동산동</option>
           </optgroup>
-          
           <optgroup label="일산동구">
             <option value="장항동">일산동구 장항동 (라페스타/웨돔)</option>
             <option value="정발산동">일산동구 정발산동 (밤리단길)</option>
@@ -361,7 +355,6 @@
             <option value="풍동">일산동구 풍동</option>
             <option value="성석동">일산동구 성석동</option>
           </optgroup>
-          
           <optgroup label="일산서구">
             <option value="가좌동">일산서구 가좌동</option>
             <option value="주엽동">일산서구 주엽동</option>
@@ -390,7 +383,7 @@
     <div class="map-container">
       <div id="map"></div>
 
-      <!-- 챗봇 UI 요소 -->
+      <!-- 챗봇 UI -->
       <button class="chat-toggle-btn" onclick="toggleChatWindow()">🤖</button>
 
       <div id="chatWindow" class="chat-window">
@@ -400,13 +393,14 @@
         </div>
         <div id="chatMessages" class="chat-messages">
           <div class="chat-bubble bot">
-            안녕하세요! LOCALIT AI 가이드입니다. 🖐️<br>
-            예) "밤리단길 예쁜 카페 찾아줘"<br>
-            예) "화정동 파스타 맛집 추천해줘"
+            안녕하세요! LOCALIT AI 가이드입니다. 🖐️<br><br>
+            💡 <b>궁금한 장소를 자유롭게 물어보세요!</b><br>
+            • "식사동 김밥집 추천해줘"<br>
+            • "밤리단길 예쁜 카페 찾아줘"
           </div>
         </div>
         <div class="chat-input-area">
-          <input type="text" id="chatInput" class="chat-input" placeholder="궁금한 장소를 물어보세요..." onkeyup="handleChatKeyPress(event)">
+          <input type="text" id="chatInput" class="chat-input" placeholder="질문을 입력하세요..." onkeyup="handleChatKeyPress(event)">
           <button class="chat-send-btn" onclick="sendChatMessage()">전송</button>
         </div>
       </div>
@@ -445,7 +439,8 @@
       '마두동': { lat: 37.6521, lng: 126.7822, level: 4 },
       '중산동': { lat: 37.6851, lng: 126.7782, level: 4 },
       '식사동': { lat: 37.6781, lng: 126.8121, level: 4 },
-      '풍동': { lat: 37.6681, lng: 126.7981, level: 4 },      '성석동': { lat: 37.6981, lng: 126.7811, level: 5 },
+      '풍동': { lat: 37.6681, lng: 126.7981, level: 4 },
+      '성석동': { lat: 37.6981, lng: 126.7811, level: 5 },
       '가좌동': { lat: 37.6912, lng: 126.7282, level: 4 },
       '주엽동': { lat: 37.6701, lng: 126.7611, level: 4 },
       '대화동': { lat: 37.6761, lng: 126.7481, level: 4 },
@@ -590,7 +585,7 @@
           }, searchOptions);
         });
       } else {
-        let searchKeyword = searchInput !== '' ? `${searchInput} ${currentCategory}` : currentCategory;
+        let searchKeyword = searchInput !== '' ? `${searchInput}` : currentCategory;
         placeSearchService.keywordSearch(searchKeyword, placesSearchCallback, searchOptions);
       }
     }
@@ -627,11 +622,11 @@
 
     function renderFinalResults() {
       if (accumulatedPlaces.length > 0) {
-        document.getElementById('resultSummary').textContent = `현재 지도 화면 내 ${currentCategory} ${accumulatedPlaces.length}곳 발견`;
+        document.getElementById('resultSummary').textContent = `현재 지도 화면 내 장소 ${accumulatedPlaces.length}곳 발견`;
         displayPlaceList(accumulatedPlaces);
         displayMarkers(accumulatedPlaces);
       } else {
-        document.getElementById('resultSummary').textContent = `현재 지도 화면 내 ${currentCategory} 검색 결과가 없습니다.`;
+        document.getElementById('resultSummary').textContent = `현재 지도 화면 내 검색 결과가 없습니다.`;
         clearPlaceList();
         removeMarkers();
       }
@@ -719,20 +714,14 @@
       infoWindow.open(kakaoMap, marker);
     }
 
-    /* ================= 챗봇 로직 추가 ================= */
+    /* ================= 챗봇 전용 독립 로직 ================= */
     function toggleChatWindow() {
       const chatWin = document.getElementById('chatWindow');
-      if (chatWin.style.display === 'flex') {
-        chatWin.style.display = 'none';
-      } else {
-        chatWin.style.display = 'flex';
-      }
+      chatWin.style.display = (chatWin.style.display === 'flex') ? 'none' : 'flex';
     }
 
     function handleChatKeyPress(e) {
-      if (e.key === 'Enter') {
-        sendChatMessage();
-      }
+      if (e.key === 'Enter') sendChatMessage();
     }
 
     function sendChatMessage() {
@@ -743,8 +732,7 @@
       appendMessage(text, 'user');
       inputEl.value = '';
 
-      // 입력한 텍스트 분석
-      parseQueryAndExecute(text);
+      executeChatSearch(text);
     }
 
     function appendMessage(msg, sender) {
@@ -756,8 +744,9 @@
       container.scrollTop = container.scrollHeight;
     }
 
-    function parseQueryAndExecute(query) {
-      // 1. 지역 감지
+    // 챗봇의 자연어를 분석하여 지도 및 추천 결과 생성
+    function executeChatSearch(query) {
+      // 1. 지역 추출
       let matchedDistrict = null;
       if (query.includes('밤리단길')) matchedDistrict = '정발산동';
       else if (query.includes('라페스타') || query.includes('웨돔')) matchedDistrict = '장항동';
@@ -770,47 +759,72 @@
         });
       }
 
-      // 2. 카테고리 감지
-      let matchedCategory = null;
-      if (query.includes('카페') || query.includes('커피') || query.includes('디저트')) matchedCategory = '카페';
-      else if (query.includes('식당') || query.includes('맛집') || query.includes('밥') || query.includes('파스타')) matchedCategory = '식당';
-      else if (query.includes('소품') || query.includes('잡화')) matchedCategory = '소품샵';
-      else if (query.includes('서점') || query.includes('책방')) matchedCategory = '서점';
-
-      // 3. 필터링 및 조작
-      let replyText = "";
+      // 2. 키워드 정제 (불필요 어미, 조사, 질문어 제거)
+      let rawKeyword = query
+        .replace(/(추천해줘|추천|찾아줘|알려줘|있어\?|어디야|평점|높은|곳|두 곳|2곳|베스트|상위|맛집)/g, '')
+        .replace(/집$/g, '') // '김밥집' -> '김밥'
+        .trim();
 
       if (matchedDistrict) {
+        rawKeyword = rawKeyword.replace(matchedDistrict, '').trim();
+      }
+
+      // 최종 검색 키워드 조합 (예: "고양시 식사동 김밥")
+      let fullSearchKeyword = "";
+      if (matchedDistrict) {
+        fullSearchKeyword = `고양시 ${matchedDistrict} ${rawKeyword}`;
         document.getElementById('districtSelect').value = matchedDistrict;
-        replyText += `📍 <b>${matchedDistrict}</b> 지역으로 이동합니다.<br>`;
-      }
-
-      if (matchedCategory) {
-        selectTab(matchedCategory);
-        replyText += `🏷️ 카테고리를 <b>'${matchedCategory}'</b>로 설정했어요.<br>`;
-      }
-
-      // 키워드 설정 (지역 및 카테고리를 제외한 특정 검색어 추출)
-      let keyword = query.replace(/(추천|해줘|알려줘|찾아줘|있어\?|맛집|근처)/g, '').trim();
-      if (matchedDistrict) keyword = keyword.replace(matchedDistrict, '').trim();
-      if (matchedCategory) keyword = keyword.replace(matchedCategory, '').trim();
-
-      if (keyword.length > 0) {
-        document.getElementById('searchInput').value = keyword;
-        replyText += `🔍 '<b>${keyword}</b>' 키워드로 검색해 드릴게요!`;
       } else {
-        document.getElementById('searchInput').value = '';
+        const currentDistrict = document.getElementById('districtSelect').value;
+        fullSearchKeyword = currentDistrict !== '전체' ? `고양시 ${currentDistrict} ${rawKeyword}` : `고양시 ${rawKeyword}`;
       }
 
-      if (!matchedDistrict && !matchedCategory && keyword.length === 0) {
-        replyText = "죄송해요, 입력하신 내용에서 지역이나 카테고리를 찾지 못했어요. 😢<br>'밤리단길 카페' 또는 '화정동 맛집'처럼 물어봐 주세요!";
-      } else {
-        searchPlaces();
+      appendMessage(`🔍 '<b>${fullSearchKeyword}</b>' 장소를 검색 중입니다... 🤖`, 'bot');
+
+      // 3. 지도 중심 위치 이동
+      isDistrictChanging = true;
+      infoWindow.close();
+
+      if (matchedDistrict && districtCoordinates[matchedDistrict]) {
+        const coord = districtCoordinates[matchedDistrict];
+        kakaoMap.setLevel(coord.level);
+        kakaoMap.setCenter(new kakao.maps.LatLng(coord.lat, coord.lng));
       }
 
+      // 4. 챗봇 독립 검색 수행 (카카오 전체 키워드 검색)
       setTimeout(() => {
-        appendMessage(replyText, 'bot');
-      }, 500);
+        isDistrictChanging = false;
+
+        removeMarkers();
+        clearPlaceList();
+        accumulatedPlaces = [];
+
+        placeSearchService.keywordSearch(fullSearchKeyword, function(data, status) {
+          if (status === kakao.maps.services.Status.OK && data && data.length > 0) {
+            processAndFilterPlaces(data);
+            renderFinalResults();
+
+            // 챗봇 대화창에 추천 카드 생성
+            let botResponse = `📍 <b>${fullSearchKeyword}</b> 검색 결과입니다! (총 ${accumulatedPlaces.length}곳)<br><br>`;
+            botResponse += `⭐ <b>추천 장소 Top 2</b><br>`;
+            
+            const topPlaces = accumulatedPlaces.slice(0, 2);
+            topPlaces.forEach((p, idx) => {
+              botResponse += `
+                <div style="margin-top:6px; padding:8px; background:#f1f3f5; border-radius:6px; border:1px solid #dee2e6;">
+                  <b>${idx + 1}. ${p.place_name}</b><br>
+                  <span style="font-size:11px; color:#666;">📍 ${p.road_address_name || p.address_name}</span><br>
+                  <a href="${p.place_url}" target="_blank" style="font-size:11px; color:#3c1e1e; font-weight:bold; text-decoration:none;">상세보기 ➔</a>
+                </div>
+              `;
+            });
+
+            appendMessage(botResponse, 'bot');
+          } else {
+            appendMessage(`😢 '${fullSearchKeyword}'에 대한 검색 결과가 없습니다. 다른 검색어나 동 이름을 입력해보세요!`, 'bot');
+          }
+        });
+      }, 300);
     }
   </script>
 </body>
