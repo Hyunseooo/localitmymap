@@ -423,6 +423,7 @@
     let mapMarkers = [];
     let accumulatedPlaces = [];
     let isDistrictChanging = false;
+    let isAiResultLocked = false; // 챗봇 검색 결과가 지도 이동(idle) 이벤트로 덮어써지는 것을 막는 잠금
 
     const districtCoordinates = {
       '전체': { lat: 37.6583599, lng: 126.8320001, level: 7 },
@@ -492,7 +493,7 @@
       });
 
       kakao.maps.event.addListener(kakaoMap, 'idle', function() {
-        if (!isDistrictChanging) {
+        if (!isDistrictChanging && !isAiResultLocked) {
           searchPlacesByBounds();
         }
       });
@@ -529,6 +530,14 @@
       searchPlaces();
     }
 
+    // 검색을 다시 실행하지 않고 탭 표시와 현재 카테고리(마커 색상)만 바꾸는 함수
+    function setActiveTabUI(categoryName) {
+      currentCategory = categoryName;
+      document.querySelectorAll('.tab-button').forEach(button => {
+        button.classList.toggle('active', button.textContent === categoryName);
+      });
+    }
+
     function handleDistrictChange() {
       searchPlaces();
     }
@@ -544,6 +553,8 @@
     }
 
     function searchPlaces() {
+      // 탭/지역/검색 버튼으로 직접 검색하면 챗봇 결과 잠금을 해제
+      isAiResultLocked = false;
       const selectedDistrict = document.getElementById('districtSelect').value;
       
       isDistrictChanging = true;
@@ -798,6 +809,7 @@ Output ONLY a raw JSON object with NO markdown formatting, NO backticks, and NO 
 {
   "district": "extracted district name in Goyang (e.g., 식사동, 화정동, 정발산동) or null",
   "keyword": "core keyword for Kakao map search (e.g., 김밥, 카페, 파스타) or null",
+  "category": "one of exactly 식당, 카페, 소품샵, 서점 that best matches the place type the user asks about, or null",
   "aiComment": "Friendly 1-2 sentence recommendation message in Korean summarizing why these places match their intent."
 }
       `;
@@ -821,11 +833,12 @@ Output ONLY a raw JSON object with NO markdown formatting, NO backticks, and NO 
         const district = parsedData.district;
         const keyword = parsedData.keyword || "맛집";
         const aiComment = parsedData.aiComment;
+        const category = parsedData.category;
 
         const chatContainer = document.getElementById('chatMessages');
         chatContainer.removeChild(chatContainer.lastChild);
 
-        executeKakaoMapSearchFromAI(district, keyword, aiComment);
+        executeKakaoMapSearchFromAI(district, keyword, aiComment, category);
 
       } catch (error) {
         console.error("Gemini API Error:", error);
@@ -835,7 +848,16 @@ Output ONLY a raw JSON object with NO markdown formatting, NO backticks, and NO 
       }
     }
 
-    function executeKakaoMapSearchFromAI(district, keyword, aiComment) {
+    function executeKakaoMapSearchFromAI(district, keyword, aiComment, category) {
+      // 지도를 이동해도 탭 기준 재검색이 결과를 덮어쓰지 않도록 잠금
+      isAiResultLocked = true;
+      infoWindow.close();
+
+      // AI가 판단한 카테고리로 탭 표시와 마커 색상을 맞춤 (탭 구분 없이 검색 가능)
+      if (['식당', '카페', '소품샵', '서점'].includes(category)) {
+        setActiveTabUI(category);
+      }
+
       let fullKeyword = "고양시 ";
       if (district) {
         fullKeyword += `${district} `;
