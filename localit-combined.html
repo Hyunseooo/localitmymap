@@ -1,0 +1,1443 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LOCALIT 통합 화면</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; font-family: Arial,"Apple SD Gothic Neo","Malgun Gothic",sans-serif; background: #f7f5eb; }
+  .shell { display: flex; flex-direction: column; width: 100vw; height: 100vh; }
+  .topbar { display: flex; align-items: center; gap: 6px; height: 52px; padding: 0 12px; background: #365f50; color: #fff; flex-shrink: 0; }
+  .topbar .logo { font-family: Georgia,"Malgun Gothic",serif; font-weight: bold; letter-spacing: 2px; margin-right: 12px; white-space: nowrap; }
+  .topbar .logo span { color: #dce7d9; }
+  .main-tab { border: none; background: transparent; color: #cfe0d2; padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 0.9rem; white-space: nowrap; font-family: inherit; }
+  .main-tab:hover { background: rgba(255,255,255,0.1); }
+  .main-tab.active { background: #dce7d9; color: #365f50; font-weight: bold; }
+  .views { position: relative; flex: 1; min-height: 0; }
+  .view { position: absolute; inset: 0; display: none; }
+  .view.active { display: block; }
+  .view iframe { width: 100%; height: 100%; border: 0; display: block; background: #fff; }
+  @media (max-width: 560px) {
+    .topbar .logo { display: none; }
+    .main-tab { flex: 1; padding: 8px 4px; font-size: 0.82rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <nav class="topbar">
+    <div class="logo">📍 <span>LOCALIT</span></div>
+    <button class="main-tab active" data-view="map">🗺️ 지도 & AI 챗봇</button>
+    <button class="main-tab" data-view="archive">📔 로컬 아카이브</button>
+    <button class="main-tab" data-view="stamp">🐾 스탬프 투어</button>
+  </nav>
+  <div class="views">
+    <div class="view active" id="view-map"><iframe id="frame-map" title="LOCALIT 지도"></iframe></div>
+    <div class="view" id="view-archive"><iframe id="frame-archive" title="LOCALIT 아카이브"></iframe></div>
+    <div class="view" id="view-stamp"><iframe id="frame-stamp" title="고양 스탬프 투어"></iframe></div>
+  </div>
+</div>
+
+<!-- 각 화면의 원본 코드. 서로의 CSS/JS가 충돌하지 않도록 독립된 프레임에서 실행됩니다. -->
+<script type="text/plain" id="src-map">
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LOCALIT 지도 & AI 챗봇 (Gemini 연동)</title>
+  <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=b3c1b3d89c3faba562c87e2765978f03&libraries=services"><\/script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body, html { width: 100%; height: 100%; font-family: Arial,"Apple SD Gothic Neo","Malgun Gothic",sans-serif; overflow: hidden; }
+    .container { display: flex; width: 100vw; height: 100vh; position: relative; }
+    .sidebar { flex: 1; min-width: 280px; max-width: 360px; background-color: #f7f5eb; border-right: 1px solid #e4e6dc; display: flex; flex-direction: column; z-index: 10; }
+    .sidebar-header { padding: 18px 16px; background-color: #365f50; color: #ffffff; font-weight: bold; font-size: 1.2rem; text-align: center; letter-spacing: 1px; }
+    .sidebar-header span { color: #dce7d9; }
+    .tabs { display: flex; background-color: #ffffff; border-bottom: 1px solid #e4e6dc; }
+    .tab-button { flex: 1; padding: 12px 0; border: none; background-color: #ffffff; cursor: pointer; font-size: 0.88rem; color: #4a5f55; transition: all 0.2s ease; }
+    .tab-button:hover { background-color: #eef1e6; }
+    .tab-button.active { font-weight: bold; color: #000000; border-bottom: 3px solid #365f50; background-color: #f7f5eb; }
+    .district-box { padding: 10px 12px 0 12px; background-color: #ffffff; }
+    .district-select { width: 100%; padding: 8px 10px; border: 1px solid #cbd7c9; border-radius: 9px; outline: none; font-size: 0.88rem; background-color: #f7f5eb; color: #263e35; cursor: pointer; }
+    .district-select:focus { border-color: #365f50; }
+    .search-box { display: flex; padding: 10px 12px; background-color: #ffffff; border-bottom: 1px solid #e4e6dc; gap: 8px; }
+    .search-input { flex: 1; padding: 8px 12px; border: 1px solid #cbd7c9; border-radius: 9px; outline: none; font-size: 0.9rem; }
+    .search-input:focus { border-color: #365f50; }
+    .search-button { padding: 8px 14px; background-color: #365f50; color: #ffffff; border: none; border-radius: 9px; cursor: pointer; font-size: 0.9rem; }
+    .result-summary { padding: 8px 12px; font-size: 0.8rem; color: #778579; background-color: #e4e6dc; border-bottom: 1px solid #e4e6dc; }
+    .place-list { flex: 1; overflow-y: auto; padding: 10px; }
+    .place-item { padding: 12px; margin-bottom: 8px; background-color: #ffffff; border: 1px solid #e4e6dc; border-radius: 12px; cursor: pointer; transition: background-color 0.2s ease; }
+    .place-item:hover { background-color: #eef1e6; }
+    .place-title { font-weight: bold; font-size: 0.95rem; margin-bottom: 4px; color: #263e35; }
+    .place-address { font-size: 0.82rem; color: #778579; }
+    .map-container { flex: 3; height: 100%; position: relative; }
+    #map { width: 100%; height: 100%; }
+    .chat-toggle-btn { position: absolute; bottom: 25px; right: 25px; width: 60px; height: 60px; border-radius: 50%; background-color: #365f50; color: #dce7d9; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.25); cursor: pointer; font-size: 26px; z-index: 100; display: flex; align-items: center; justify-content: center; transition: transform 0.2s ease; }
+    .chat-toggle-btn:hover { transform: scale(1.08); }
+    .chat-window { position: absolute; bottom: 95px; right: 25px; width: 360px; height: 500px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 5px 25px rgba(0,0,0,0.2); display: none; flex-direction: column; z-index: 100; overflow: hidden; border: 1px solid #e4e6dc; }
+    .chat-header { background-color: #365f50; color: #ffffff; padding: 14px 16px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; font-size: 0.95rem; }
+    .chat-header span { color: #dce7d9; }
+    .chat-close-btn { background: none; border: none; color: #ffffff; font-size: 18px; cursor: pointer; }
+    .chat-messages { flex: 1; padding: 12px; overflow-y: auto; background-color: #f7f5eb; display: flex; flex-direction: column; gap: 10px; }
+    .chat-bubble { max-width: 88%; padding: 10px 12px; border-radius: 10px; font-size: 0.85rem; line-height: 1.4; }
+    .chat-bubble.bot { background-color: #ffffff; color: #263e35; align-self: flex-start; border: 1px solid #e4e6dc; border-top-left-radius: 2px; }
+    .chat-bubble.user { background-color: #365f50; color: #ffffff; align-self: flex-end; border-top-right-radius: 2px; }
+    .chat-input-area { display: flex; padding: 10px; background-color: #ffffff; border-top: 1px solid #e4e6dc; gap: 6px; }
+    .chat-input { flex: 1; padding: 8px 10px; border: 1px solid #cbd7c9; border-radius: 9px; outline: none; font-size: 0.85rem; }
+    .chat-send-btn { padding: 8px 12px; background-color: #365f50; color: #dce7d9; border: none; border-radius: 9px; font-weight: bold; cursor: pointer; font-size: 0.85rem; }
+    @media (max-width: 700px) {
+      .container { flex-direction: column; }
+      .sidebar { max-width: none; width: 100%; flex: 0 0 45%; min-width: 0; border-right: none; border-bottom: 1px solid #e4e6dc; }
+      .map-container { flex: 1; }
+      .chat-window { width: calc(100% - 30px); right: 15px; height: 70%; }
+    }
+    .sidebar-header { font-family: Georgia,"Malgun Gothic",serif; letter-spacing: 2px; }
+    .sidebar-header span { color: #dce7d9; }
+    .tab-button { font-family: inherit; }
+    .tab-button.active { background-color: #e2ede1; color: #365f50; border-bottom-color: #365f50; }
+    .result-summary { background-color: #dce7d9; color: #365f50; }
+    .place-item, .chat-window { border-radius: 14px; }
+    .place-item:hover { background-color: #eef1e6; }
+    .chat-header span, .chat-toggle-btn { color: #f7f5eb; }
+    .chat-send-btn { color: #f7f5eb; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        📍 <span>LOCALIT</span> 지도
+      </div>
+
+      <div class="tabs">
+        <button class="tab-button active" onclick="selectTab('식당')">식당</button>
+        <button class="tab-button" onclick="selectTab('카페')">카페</button>
+        <button class="tab-button" onclick="selectTab('소품샵')">소품샵</button>
+        <button class="tab-button" onclick="selectTab('서점')">서점</button>
+      </div>
+
+      <div class="district-box">
+        <select id="districtSelect" class="district-select" onchange="handleDistrictChange()">
+          <option value="전체">고양시 전체</option>
+          <optgroup label="덕양구">
+            <option value="화정동">덕양구 화정동</option>
+            <option value="행신동">덕양구 행신동</option>
+            <option value="삼송동">덕양구 삼송동</option>
+            <option value="원흥동">덕양구 원흥동</option>
+            <option value="지축동">덕양구 지축동</option>
+            <option value="원당동">덕양구 원당동</option>
+            <option value="향동동">덕양구 향동동</option>
+            <option value="덕은동">덕양구 덕은동</option>
+            <option value="주교동">덕양구 주교동</option>
+            <option value="성사동">덕양구 성사동</option>
+            <option value="신원동">덕양구 신원동</option>
+            <option value="고양동">덕양구 고양동</option>
+            <option value="관산동">덕양구 관산동</option>
+            <option value="도내동">덕양구 도내동</option>
+            <option value="동산동">덕양구 동산동</option>
+          </optgroup>
+          <optgroup label="일산동구">
+            <option value="장항동">일산동구 장항동 (라페스타/웨돔)</option>
+            <option value="정발산동">일산동구 정발산동 (밤리단길)</option>
+            <option value="백석동">일산동구 백석동</option>
+            <option value="마두동">일산동구 마두동</option>
+            <option value="중산동">일산동구 중산동</option>
+            <option value="식사동">일산동구 식사동</option>
+            <option value="풍동">일산동구 풍동</option>
+            <option value="성석동">일산동구 성석동</option>
+          </optgroup>
+          <optgroup label="일산서구">
+            <option value="가좌동">일산서구 가좌동</option>
+            <option value="주엽동">일산서구 주엽동</option>
+            <option value="대화동">일산서구 대화동 (킨텍스)</option>
+            <option value="탄현동">일산서구 탄현동</option>
+            <option value="덕이동">일산서구 덕이동</option>
+            <option value="일산동">일산서구 일산동</option>
+            <option value="구산동">일산서구 구산동</option>
+            <option value="법곳동">일산서구 법곳동</option>
+          </optgroup>
+        </select>
+      </div>
+
+      <div class="search-box">
+        <input type="text" id="searchInput" class="search-input" placeholder="장소/키워드 입력 (선택)" onkeyup="handleKeyPress(event)">
+        <button class="search-button" onclick="executeSearch()">검색</button>
+      </div>
+
+      <div id="resultSummary" class="result-summary">
+        검색 진행 중...
+      </div>
+
+      <div id="placeList" class="place-list"></div>
+    </div>
+
+    <div class="map-container">
+      <div id="map"></div>
+
+      <button class="chat-toggle-btn" onclick="toggleChatWindow()">🤖</button>
+
+      <div id="chatWindow" class="chat-window">
+        <div class="chat-header">
+          <span>✨ LOCALIT AI 가이드</span>
+          <button class="chat-close-btn" onclick="toggleChatWindow()">✕</button>
+        </div>
+        <div id="chatMessages" class="chat-messages">
+          <div class="chat-bubble bot">
+            안녕하세요! AI 가이드입니다. 🖐️<br><br>
+            자연어로 편하게 물어보세요!<br>
+            • "식사동 평점 높고 평 좋은 김밥집 추천해줘"<br>
+            • "밤리단길 데이트하기 좋은 카페 알려줘"
+          </div>
+        </div>
+        <div class="chat-input-area">
+          <input type="text" id="chatInput" class="chat-input" placeholder="원하는 장소를 자유롭게 물어보세요..." onkeyup="handleChatKeyPress(event)">
+          <button class="chat-send-btn" onclick="sendChatMessage()">전송</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // (노출된 키라면 Google AI Studio에서 새로 발급해서 이 자리에 교체하세요)
+    const GEMINI_API_KEY = "AQ.Ab8RN6IX04aaW1ri5pQ2Ocz6MBkYQ8Fd1pGJw_q-eXEfBarIPA";
+
+    const GEMINI_MODELS = ["gemini-flash-latest", "gemini-2.5-flash"];
+
+    let kakaoMap = null;
+    let placeSearchService = null;
+    let infoWindow = null;
+    let currentCategory = '식당';
+    let mapMarkers = [];
+    let accumulatedPlaces = [];
+    let isDistrictChanging = false;
+    let isAiResultLocked = false;
+
+    const districtCoordinates = {
+      '전체': { lat: 37.6583599, lng: 126.8320001, level: 7 },
+      '화정동': { lat: 37.6353, lng: 126.8322, level: 4 },
+      '행신동': { lat: 37.6148, lng: 126.8341, level: 4 },
+      '삼송동': { lat: 37.6521, lng: 126.8953, level: 4 },
+      '원흥동': { lat: 37.6499, lng: 126.8722, level: 4 },
+      '지축동': { lat: 37.6534, lng: 126.9082, level: 4 },
+      '원당동': { lat: 37.6698, lng: 126.8521, level: 5 },
+      '향동동': { lat: 37.6001, lng: 126.8988, level: 4 },
+      '덕은동': { lat: 37.5852, lng: 126.8831, level: 4 },
+      '주교동': { lat: 37.6562, lng: 126.8083, level: 4 },
+      '성사동': { lat: 37.6541, lng: 126.8371, level: 4 },
+      '신원동': { lat: 37.6685, lng: 126.8872, level: 4 },
+      '고양동': { lat: 37.7011, lng: 126.9025, level: 5 },
+      '관산동': { lat: 37.6961, lng: 126.8611, level: 5 },
+      '도내동': { lat: 37.6322, lng: 126.8621, level: 4 },
+      '동산동': { lat: 37.6433, lng: 126.8922, level: 4 },
+      '장항동': { lat: 37.6582, lng: 126.7712, level: 4 },
+      '정발산동': { lat: 37.6672, lng: 126.7821, level: 4 },
+      '백석동': { lat: 37.6421, lng: 126.7882, level: 4 },
+      '마두동': { lat: 37.6521, lng: 126.7822, level: 4 },
+      '중산동': { lat: 37.6851, lng: 126.7782, level: 4 },
+      '식사동': { lat: 37.6781, lng: 126.8121, level: 4 },
+      '풍동': { lat: 37.6681, lng: 126.7981, level: 4 },
+      '성석동': { lat: 37.6981, lng: 126.7811, level: 5 },
+      '가좌동': { lat: 37.6912, lng: 126.7282, level: 4 },
+      '주엽동': { lat: 37.6701, lng: 126.7611, level: 4 },
+      '대화동': { lat: 37.6761, lng: 126.7481, level: 4 },
+      '탄현동': { lat: 37.6941, lng: 126.7631, level: 4 },
+      '덕이동': { lat: 37.6981, lng: 126.7421, level: 5 },
+      '일산동': { lat: 37.6861, lng: 126.7711, level: 4 },
+      '구산동': { lat: 37.7081, lng: 126.7112, level: 5 },
+      '법곳동': { lat: 37.6681, lng: 126.7321, level: 5 }
+    };
+
+    const categoryColors = {
+      '식당': '#365f50',
+      '카페': '#c98b6b',
+      '소품샵': '#d9b45b',
+      '서점': '#6f8fa8'
+    };
+
+    const excludeKeywords = ['인테리어', '철물', '커튼', '블라인드', '조명', '설비', '공사', '자재', '원단', '가구', '타일', '지붕', '창호', '샤시', '간판'];
+
+    window.onload = function() {
+      initMap();
+    };
+
+    function initMap() {
+      const mapContainer = document.getElementById('map');
+      const mapOptions = {
+        center: new kakao.maps.LatLng(37.6583599, 126.8320001),
+        level: 5
+      };
+
+      kakaoMap = new kakao.maps.Map(mapContainer, mapOptions);
+      placeSearchService = new kakao.maps.services.Places();
+
+      infoWindow = new kakao.maps.InfoWindow({ zIndex: 2, removable: true });
+
+      kakao.maps.event.addListener(kakaoMap, 'click', function() {
+        infoWindow.close();
+      });
+
+      kakao.maps.event.addListener(kakaoMap, 'idle', function() {
+        if (!isDistrictChanging && !isAiResultLocked) {
+          searchPlacesByBounds();
+        }
+      });
+
+      searchPlaces();
+    }
+
+    function createCustomMarkerImage(colorHex) {
+      const svgMarker = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="30" height="40" viewBox="0 0 24 32">
+          <path fill="${colorHex}" stroke="#FFFFFF" stroke-width="1.5" d="M12 0C5.37 0 0 5.37 0 12c0 9 12 20 12 20s12-11 12-20c0-6.63-5.37-12-12-12z"/>
+          <circle cx="12" cy="11" r="4.5" fill="#FFFFFF"/>
+        </svg>
+      `;
+
+      const imageSrc = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgMarker);
+      const imageSize = new kakao.maps.Size(30, 40);
+      const imageOption = { offset: new kakao.maps.Point(15, 40) };
+
+      return new kakao.maps.MarkerImage(imageSrc, imageSize, imageOption);
+    }
+
+    function selectTab(categoryName) {
+      currentCategory = categoryName;
+
+      const tabButtons = document.querySelectorAll('.tab-button');
+      tabButtons.forEach(button => {
+        button.classList.remove('active');
+        if (button.textContent === categoryName) {
+          button.classList.add('active');
+        }
+      });
+
+      searchPlaces();
+    }
+
+    function setActiveTabUI(categoryName) {
+      currentCategory = categoryName;
+      document.querySelectorAll('.tab-button').forEach(button => {
+        button.classList.toggle('active', button.textContent === categoryName);
+      });
+    }
+
+    function handleDistrictChange() {
+      searchPlaces();
+    }
+
+    function handleKeyPress(event) {
+      if (event.key === 'Enter') {
+        executeSearch();
+      }
+    }
+
+    function executeSearch() {
+      searchPlaces();
+    }
+
+    function searchPlaces() {
+      isAiResultLocked = false;
+      const selectedDistrict = document.getElementById('districtSelect').value;
+
+      isDistrictChanging = true;
+      infoWindow.close();
+
+      if (selectedDistrict !== '전체' && districtCoordinates[selectedDistrict]) {
+        const coord = districtCoordinates[selectedDistrict];
+        const centerLatLng = new kakao.maps.LatLng(coord.lat, coord.lng);
+        kakaoMap.setLevel(coord.level);
+        kakaoMap.setCenter(centerLatLng);
+      }
+
+      setTimeout(function() {
+        isDistrictChanging = false;
+        searchPlacesByBounds();
+      }, 300);
+    }
+
+    function searchPlacesByBounds() {
+      const searchInput = document.getElementById('searchInput').value.trim();
+
+      removeMarkers();
+      clearPlaceList();
+      accumulatedPlaces = [];
+      document.getElementById('resultSummary').textContent = '현재 화면에서 장소를 검색 중입니다...';
+
+      const searchOptions = {
+        bounds: kakaoMap.getBounds(),
+        useMapBounds: true,
+        size: 15
+      };
+
+      if (currentCategory === '소품샵' && searchInput === '') {
+        let multiKeywords = ['소품샵', '잡화점', '문구점'];
+        let completedCalls = 0;
+
+        multiKeywords.forEach(keyword => {
+          placeSearchService.keywordSearch(keyword, function(data, status) {
+            completedCalls++;
+            if (status === kakao.maps.services.Status.OK && data) {
+              processAndFilterPlaces(data);
+            }
+
+            if (completedCalls === multiKeywords.length) {
+              renderFinalResults();
+            }
+          }, searchOptions);
+        });
+      } else {
+        let searchKeyword = searchInput !== '' ? `${searchInput}` : currentCategory;
+        placeSearchService.keywordSearch(searchKeyword, placesSearchCallback, searchOptions);
+      }
+    }
+
+    function processAndFilterPlaces(data) {
+      data.forEach(place => {
+        const isDuplicate = accumulatedPlaces.some(item => item.id === place.id);
+        if (isDuplicate) return;
+
+        const categoryName = place.category_name || '';
+        const placeName = place.place_name || '';
+        const isExcluded = excludeKeywords.some(keyword =>
+          categoryName.includes(keyword) || placeName.includes(keyword)
+        );
+
+        if (!isExcluded) {
+          accumulatedPlaces.push(place);
+        }
+      });
+    }
+
+    function placesSearchCallback(data, status, pagination) {
+      if (status === kakao.maps.services.Status.OK && data && data.length > 0) {
+        processAndFilterPlaces(data);
+
+        if (pagination.hasNextPage && accumulatedPlaces.length < 45) {
+          pagination.nextPage();
+          return;
+        }
+      }
+
+      renderFinalResults();
+    }
+
+    function renderFinalResults() {
+      if (accumulatedPlaces.length > 0) {
+        document.getElementById('resultSummary').textContent = `현재 지도 화면 내 장소 ${accumulatedPlaces.length}곳 발견`;
+        displayPlaceList(accumulatedPlaces);
+        displayMarkers(accumulatedPlaces);
+      } else {
+        document.getElementById('resultSummary').textContent = `현재 지도 화면 내 검색 결과가 없습니다.`;
+        clearPlaceList();
+        removeMarkers();
+      }
+    }
+
+    function displayPlaceList(places) {
+      const listContainer = document.getElementById('placeList');
+      clearPlaceList();
+
+      places.forEach((place, index) => {
+        const itemElement = document.createElement('div');
+        itemElement.className = 'place-item';
+
+        itemElement.innerHTML = `
+          <div class="place-title">${index + 1}. ${place.place_name}</div>
+          <div class="place-address">${place.road_address_name || place.address_name}</div>
+        `;
+
+        itemElement.onclick = function() {
+          const moveLatLng = new kakao.maps.LatLng(place.y, place.x);
+          kakaoMap.panTo(moveLatLng);
+          openInfoWindow(mapMarkers[index], place);
+        };
+
+        listContainer.appendChild(itemElement);
+      });
+    }
+
+    function clearPlaceList() {
+      const listContainer = document.getElementById('placeList');
+      listContainer.innerHTML = '';
+    }
+
+    function displayMarkers(places) {
+      const currentColorHex = categoryColors[currentCategory] || '#365f50';
+      const markerImage = createCustomMarkerImage(currentColorHex);
+
+      places.forEach((place, index) => {
+        const placePosition = new kakao.maps.LatLng(place.y, place.x);
+
+        const marker = new kakao.maps.Marker({
+          position: placePosition,
+          image: markerImage,
+          map: kakaoMap
+        });
+
+        kakao.maps.event.addListener(marker, 'click', function() {
+          openInfoWindow(marker, place);
+        });
+
+        mapMarkers.push(marker);
+      });
+    }
+
+    function removeMarkers() {
+      mapMarkers.forEach(marker => marker.setMap(null));
+      mapMarkers = [];
+    }
+
+    function openInfoWindow(marker, place) {
+      const address = place.road_address_name || place.address_name;
+      const phone = place.phone ? place.phone : '전화번호 정보 없음';
+      const placeUrl = place.place_url;
+
+      const content = `
+        <div style="padding: 12px; font-size: 12px; line-height: 1.5; min-width: 200px; max-width: 240px; color: #333;">
+          <div style="font-weight: bold; font-size: 14px; color: #365f50; margin-bottom: 6px; border-bottom: 1px solid #eee; padding-bottom: 4px;">
+            ${place.place_name}
+          </div>
+          <div style="margin-bottom: 4px; color: #555;">
+            📍 ${address}
+          </div>
+          <div style="margin-bottom: 8px; color: #777; font-size: 11px;">
+            📞 ${phone}
+          </div>
+          <div style="text-align: right;">
+            <a href="${placeUrl}" target="_blank" style="display: inline-block; padding: 4px 8px; background-color: #dce7d9; color: #365f50; text-decoration: none; border-radius: 9px; font-weight: bold; font-size: 11px;">
+              상세보기 ➔
+            </a>
+          </div>
+        </div>
+      `;
+
+      infoWindow.setContent(content);
+      infoWindow.open(kakaoMap, marker);
+    }
+
+    function toggleChatWindow() {
+      const chatWin = document.getElementById('chatWindow');
+      chatWin.style.display = (chatWin.style.display === 'flex') ? 'none' : 'flex';
+    }
+
+    function handleChatKeyPress(e) {
+      if (e.key === 'Enter') sendChatMessage();
+    }
+
+    function sendChatMessage() {
+      const inputEl = document.getElementById('chatInput');
+      const text = inputEl.value.trim();
+      if (!text) return;
+
+      appendMessage(text, 'user');
+      inputEl.value = '';
+
+      processChatWithGemini(text);
+    }
+
+    function appendMessage(msg, sender) {
+      const container = document.getElementById('chatMessages');
+      const bubble = document.createElement('div');
+      bubble.className = `chat-bubble ${sender}`;
+      bubble.innerHTML = msg;
+      container.appendChild(bubble);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    async function callGemini(promptText) {
+      let lastError = null;
+
+      for (const model of GEMINI_MODELS) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              { role: 'user', parts: [{ text: promptText }] }
+            ],
+            generationConfig: { responseMimeType: "application/json" }
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+          lastError = new Error(data.error.message);
+          if (response.status === 404) {
+            console.warn(`모델 ${model} 사용 불가, 다음 모델로 전환합니다.`);
+            continue;
+          }
+          throw lastError;
+        }
+
+        return data;
+      }
+
+      throw lastError || new Error('사용 가능한 Gemini 모델을 찾지 못했습니다.');
+    }
+
+    async function processChatWithGemini(userQuery) {
+      appendMessage("✨ AI가 질문을 분석 중입니다...", 'bot');
+
+      const systemPrompt = `
+You are a helpful local map assistant for Goyang-si, South Korea.
+Analyze the user's Korean query and extract search intentions.
+Output ONLY a raw JSON object with NO markdown formatting, NO backticks, and NO extra text:
+{
+  "district": "extracted district name in Goyang (e.g., 식사동, 화정동, 정발산동) or null",
+  "keyword": "core keyword for Kakao map search (e.g., 김밥, 카페, 파스타) or null",
+  "category": "one of exactly 식당, 카페, 소품샵, 서점 that best matches the place type the user asks about, or null",
+  "aiComment": "Friendly 1-2 sentence recommendation message in Korean summarizing why these places match their intent."
+}
+      `;
+
+      try {
+        const data = await callGemini(`${systemPrompt}\n\nUser Query: "${userQuery}"`);
+
+        const candidateText = data.candidates && data.candidates[0] &&
+          data.candidates[0].content && data.candidates[0].content.parts &&
+          data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
+
+        if (!candidateText) {
+          throw new Error('AI가 응답을 생성하지 못했습니다. 다시 시도해 주세요.');
+        }
+
+        let aiRawText = candidateText.trim();
+        aiRawText = aiRawText.replace(/```json|```/g, '').trim();
+
+        const parsedData = JSON.parse(aiRawText);
+
+        const district = parsedData.district;
+        const keyword = parsedData.keyword || "맛집";
+        const aiComment = parsedData.aiComment;
+        const category = parsedData.category;
+
+        const chatContainer = document.getElementById('chatMessages');
+        chatContainer.removeChild(chatContainer.lastChild);
+
+        executeKakaoMapSearchFromAI(district, keyword, aiComment, category);
+
+      } catch (error) {
+        console.error("Gemini API Error:", error);
+        const chatContainer = document.getElementById('chatMessages');
+        chatContainer.removeChild(chatContainer.lastChild);
+        appendMessage(`⚠️ AI 응답 오류: ${error.message || 'API 키를 확인해 주세요.'}`, 'bot');
+      }
+    }
+
+    function executeKakaoMapSearchFromAI(district, keyword, aiComment, category) {
+      isAiResultLocked = true;
+      infoWindow.close();
+
+      if (['식당', '카페', '소품샵', '서점'].includes(category)) {
+        setActiveTabUI(category);
+      }
+
+      let fullKeyword = "고양시 ";
+      if (district) {
+        fullKeyword += `${district} `;
+        document.getElementById('districtSelect').value = district;
+
+        if (districtCoordinates[district]) {
+          const coord = districtCoordinates[district];
+          kakaoMap.setLevel(coord.level);
+          kakaoMap.setCenter(new kakao.maps.LatLng(coord.lat, coord.lng));
+        }
+      } else {
+        const currentDist = document.getElementById('districtSelect').value;
+        if (currentDist !== '전체') fullKeyword += `${currentDist} `;
+      }
+      fullKeyword += keyword;
+
+      removeMarkers();
+      clearPlaceList();
+      accumulatedPlaces = [];
+
+      placeSearchService.keywordSearch(fullKeyword, function(data, status) {
+        if (status === kakao.maps.services.Status.OK && data && data.length > 0) {
+          processAndFilterPlaces(data);
+          renderFinalResults();
+
+          let botResponse = `✨ <b>AI 가이드</b><br>${aiComment}<br><br>`;
+          botResponse += `📍 <b>추천 장소 Top 5</b><br>`;
+
+          const topPlaces = accumulatedPlaces.slice(0, 5);
+          topPlaces.forEach((p, idx) => {
+            botResponse += `
+              <div style="margin-top:6px; padding:8px; background:#eef1e6; border-radius:6px; border:1px solid #e4e6dc;">
+                <b>${idx + 1}. ${p.place_name}</b><br>
+                <span style="font-size:11px; color:#666;">📍 ${p.road_address_name || p.address_name}</span><br>
+                <a href="${p.place_url}" target="_blank" style="font-size:11px; color:#365f50; font-weight:bold; text-decoration:none;">상세보기 ➔</a>
+              </div>
+            `;
+          });
+
+          appendMessage(botResponse, 'bot');
+        } else {
+          appendMessage(`😢 '${fullKeyword}' 장소를 찾지 못했어요. 다른 단어로 물어봐 주세요!`, 'bot');
+        }
+      });
+    }
+  <\/script>
+</body>
+</html>
+</script>
+
+<script type="text/plain" id="src-archive">
+<!DOCTYPE html>
+<html lang="ko">
+ <head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width,initial-scale=1" name="viewport"/>
+  <title>LOCALIT · Archive</title>
+  <style>
+:root { --bg:#f7f5eb; --green:#365f50; --sage:#dce7d9; --ink:#263e35; --muted:#778579; --line:#e4e6dc }
+* { box-sizing:border-box }
+body { margin:0; background:#f7f5eb; color:var(--ink); font-family:Arial,"Apple SD Gothic Neo","Malgun Gothic",sans-serif }
+button,input,textarea { font:inherit }
+button { cursor:pointer }
+.app { max-width:760px; min-height:100dvh; margin:auto; background:var(--bg); padding:23px 24px 94px; position:relative; box-shadow:none }
+.top { display:flex; justify-content:space-between; align-items:center; color:var(--green); font-size:13px; font-weight:800; letter-spacing:2px }
+.brand-logo { display:block; width:122px; height:auto; max-height:46px; object-fit:contain }
+.top button,.back,.dots { border:0; background:transparent; color:var(--green); font-size:23px; padding:5px }
+.eyebrow { font-size:11px; letter-spacing:2px; color:#87998a; font-weight:700; margin-top:23px }
+.heading { font-family:Georgia,"Malgun Gothic",serif; font-size:29px; margin:8px 0 }
+.sub { font-size:13px; color:var(--muted); line-height:1.7 }
+.hero { background:var(--green); color:white; padding:15px 20px; border-radius:19px; margin:17px 0; position:relative; overflow:hidden }
+.hero:after { content:"✳"; font-size:92px; color:#ffffff19; position:absolute; right:8px; top:-18px }
+.hero small { letter-spacing:2px; color:#d8e9dc }
+.stats { display:flex; gap:40px; margin-top:10px }
+.stats b { display:block; font-size:27px }
+.stats span { font-size:11px; color:#e4eee5 }
+.section { display:flex; justify-content:space-between; align-items:center; margin:26px 0 12px }
+.section h3 { font-size:16px; margin:0 }
+.link { border:0; background:none; color:var(--green); font-size:12px }
+.albums { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:12px }
+.album,.entry { background:white; border:1px solid var(--line); border-radius:14px; overflow:hidden; text-align:left; color:var(--ink) }
+.album { padding:9px }
+.album-art { height:112px; border-radius:9px; background:linear-gradient(135deg,#e4eadb,#a9c1ac); display:grid; place-items:center; color:var(--green); font-family:Georgia; font-size:31px; overflow:hidden }
+.album-art img { width:100%; height:100%; object-fit:cover }
+.album strong { display:block; margin:10px 3px 4px }
+.album small { color:var(--muted); margin:3px }
+.entry { width:100%; display:flex; padding:10px; gap:12px; margin:9px 0; align-items:center }
+.thumb { width:74px; height:73px; flex-shrink:0; border-radius:8px; background:var(--sage); display:grid; place-items:center; font-size:24px; overflow:hidden }
+.thumb img { width:100%; height:100%; object-fit:cover }
+.entry strong { font-size:14px }
+.entry p { font-size:12px; color:var(--muted); margin:6px 0 }
+.fab { position:fixed; bottom:24px; left:auto; right:max(22px,calc(50% - 358px)); border:0; background:var(--green); color:white; width:48px; height:48px; border-radius:50%; font-size:29px; box-shadow:0 4px 13px #0002; z-index:5 }
+.nav { position:absolute; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--line); display:flex; justify-content:space-around; padding:13px 0 17px }
+.nav button { background:none; border:0; color:#8b9a90; font-size:12px }
+.nav .active { color:var(--green); font-weight:800; background:#e2ede1; border-radius:12px }
+.nav button { padding:7px 15px; border-radius:12px }
+.nav .active span { font-weight:900 }
+.nav span { display:block; font-size:20px; margin-bottom:4px }
+.screen { display:none }
+.screen.active { display:block }
+#editor.active { height:calc(100dvh - 125px); overflow-y:auto; overscroll-behavior:contain; padding-right:4px; padding-bottom:85px; scrollbar-width:thin; }
+#home.active { height:calc(100dvh - 125px); overflow-y:auto; overscroll-behavior:contain; padding-bottom:75px; scrollbar-width:thin }
+.paper { background:white; border:1px solid var(--line); border-radius:16px; padding:15px; margin-top:20px }
+.cover { width:100%; height:220px; object-fit:cover; border-radius:10px; background:var(--sage) }
+.placeholder { height:220px; background:var(--sage); display:grid; place-items:center; color:var(--green); border-radius:10px; font-size:45px }
+.detailhead { display:flex; justify-content:space-between; align-items:center; position:relative }
+.menu { position:absolute; right:0; top:38px; background:white; box-shadow:0 6px 24px #0002; border:1px solid var(--line); border-radius:10px; z-index:3; min-width:125px; overflow:hidden }
+.menu button { display:block; border:0; background:white; width:100%; padding:12px; text-align:left; color:var(--ink) }
+.menu button:hover { background:var(--bg) }
+.menu .danger { color:#b34d42 }
+.diarytext { white-space:pre-wrap; line-height:1.8; font-size:14px }
+.field { display:block; margin:17px 0 6px; font-size:12px; font-weight:bold; color:var(--green) }
+input,textarea,select { width:100%; padding:12px; border:1px solid #cbd7c9; background:white; border-radius:9px; color:var(--ink) }
+textarea { min-height:140px; resize:vertical }
+.primary { width:100%; background:var(--green); color:white; border:0; padding:14px; border-radius:10px; margin-top:20px; font-weight:bold }
+.secondary { border:1px solid var(--line); background:white; color:var(--green); border-radius:8px; padding:9px }
+.preview { width:100%; max-height:200px; object-fit:cover; margin-top:10px; border-radius:9px }
+#calendar.active { max-height:calc(100dvh - 145px); overflow-y:auto; overscroll-behavior:contain; padding-right:4px; padding-bottom:25px; scrollbar-width:thin }
+.scroll-albums { max-height:62dvh; overflow-y:auto; overscroll-behavior:contain; padding:3px 3px 14px }
+.scroll-entries { max-height:65dvh; overflow-y:auto; overscroll-behavior:contain; padding:3px 3px 14px }
+.conditional[hidden] { display:none }
+.home-calendar-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:12px; color:var(--green) }
+.home-calendar-head strong { font-size:17px }
+.home-calendar-head .secondary { min-width:42px }
+.calendar[hidden] { display:none }
+.calendar { display:grid; grid-template-columns:repeat(7,1fr); gap:5px; margin-top:17px }
+.day { text-align:center; padding:10px 0; border:0; background:white; border-radius:8px; font-size:12px; color:var(--ink) }
+.day.has { background:var(--sage); font-weight:bold }
+.day.selected { outline:2px solid var(--green) }
+.calendar-controls { gap:12px }
+.calendar-controls .secondary { min-width:42px }
+.month-toggle { border:0; background:transparent; color:var(--green); font-size:19px; font-weight:800; padding:8px; flex:1 }
+.month-toggle:after { content:'⌄'; font-size:13px; margin-left:7px }
+.year-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; margin-top:15px }
+.year-grid[hidden] { display:none }
+.mini-month { background:#fff; border:1px solid var(--line); border-radius:12px; padding:9px 5px; color:var(--ink); min-width:0 }
+.mini-month strong { font-size:12px; display:block; margin-bottom:8px }
+.mini-days { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:3px }
+.mini-dot { width:5px; height:5px; display:block; border-radius:50%; margin:auto; background:#e9eee6 }
+.mini-dot.visited { background:var(--green) }
+.mini-empty { height:5px }
+.week { text-align:center; font-size:11px; color:var(--muted) }
+.empty { background:white; border:1px dashed #c7d4c5; border-radius:12px; text-align:center; padding:25px 12px; color:var(--muted); font-size:13px; line-height:1.7 }
+@media(max-width:430px) {
+  .app { box-shadow:none }
+  .fab { left:auto; right:22px }
+}
+#home .home-section { margin:28px 0 32px; padding:17px 16px 20px; background:#fff; border:1px solid var(--line); border-radius:18px; }
+#home .section-divider-text { display:block; width:100%; margin:46px 0; padding:0 4px; color:var(--green); opacity:.65; font-size:12px; line-height:2; letter-spacing:-.5px; white-space:nowrap; overflow:hidden; text-align:left; }
+#home .section-divider-text + .collection-section { margin-top:0; }
+#home .home-section .section { margin:0 0 12px; }
+#home .home-section-note { color:var(--muted); font-size:12px; margin:0 0 16px; line-height:1.6; }
+#home .home-recent { display:flex; flex-direction:column; gap:11px; }
+#home .home-recent .entry { margin:0; background:var(--bg); }
+#home .calendar-section { margin-top:34px; }
+#home .calendar-section .home-calendar-head { margin-top:19px; }
+#home .calendar-section .day { background:var(--bg); }
+#home .calendar-section .day.has { background:var(--sage); }
+</style>
+ </head>
+ <body>
+  <main class="app">
+   <header class="top">
+    <img alt="LOCALIT 로고" class="brand-logo" src="./logo.png"/>
+    <button aria-label="홈으로" onclick="go('home')">✳</button>
+   </header>
+   <section class="screen active" id="home">
+    <div class="eyebrow">MY LITTLE LOCAL DIARY</div>
+    <h1 class="heading">나의 로컬 아카이브</h1>
+    <p class="sub">내가 걸어온 동네, 내가 모은 이야기.</p>
+    <div class="hero">
+     <small>MY LOCAL JOURNEY</small>
+     <h2>나의 발자취</h2>
+     <div class="stats">
+      <div><b id="count">0</b><span>방문 기록</span></div>
+      <div><b id="regions">0</b><span>탐험한 지역</span></div>
+     </div>
+    </div>
+    <div class="section-divider-text" aria-hidden="true">.⠈.⠈.⠈.⠈.⠈.⠈.⠈ .⠈.⠈.⠈.⠈.⠈.⠈.⠈..⠈.⠈.⠈.⠈.⠈.⠈.⠈ .⠈.⠈.⠈.⠈.⠈.⠈.⠈.</div>
+    <div class="home-section collection-section">
+    <div class="section">
+     <h3>나의 지역 컬렉션</h3>
+     <button class="link" onclick="go('albums')">더보기 →</button>
+    </div>
+    <div class="home-recent" id="homeAlbums"></div>
+   </div>
+   <div class="home-section calendar-section">
+    <div class="section">
+     <h3>달력으로 보기</h3>
+     <button class="link" onclick="openFullCalendar()">더보기 →</button>
+    </div>
+    <div class="home-calendar-head">
+     <button aria-label="이전 달" class="secondary" onclick="shiftHomeMonth(-1)">‹</button>
+     <strong id="homeMonthLabel"></strong>
+     <button aria-label="다음 달" class="secondary" onclick="shiftHomeMonth(1)">›</button>
+    </div>
+    <div class="calendar" id="homeCalendarGrid"></div>
+   </div>
+   </section>
+   <section class="screen" id="albums">
+    <button class="back" onclick="go('home')">‹</button>
+    <div class="eyebrow">LOCAL COLLECTION</div>
+    <h1 class="heading">나의 지역 컬렉션</h1>
+    <p class="sub">동네마다 쌓인 나만의 추억을 펼쳐보세요.</p>
+    <div class="albums scroll-albums" id="allAlbums"></div>
+   </section>
+   <section class="screen" id="region">
+    <button class="back" onclick="go('albums')">‹</button>
+    <div class="eyebrow">MY LOCAL COLLECTION</div>
+    <h1 class="heading" id="regionTitle"></h1>
+    <p class="sub" id="regionSub"></p>
+    <div class="albums scroll-albums" id="cityAlbums"></div>
+   </section>
+   <section class="screen" id="cityScreen">
+    <button class="back" onclick="showProvince(currentProvince)">‹</button>
+    <div class="eyebrow">LOCAL COLLECTION</div>
+    <h1 class="heading" id="cityTitle"></h1>
+    <p class="sub" id="citySub"></p>
+    <div class="albums scroll-albums" id="districtAlbums"></div>
+   </section>
+   <section class="screen" id="districtScreen">
+    <button class="back" onclick="backToCity()">‹</button>
+    <div class="eyebrow">MY LOCAL DIARIES</div>
+    <h1 class="heading" id="districtTitle"></h1>
+    <p class="sub" id="districtSub"></p>
+    <div class="scroll-entries" id="regionEntries"></div>
+   </section>
+   <section class="screen" id="detail">
+    <button class="back" onclick="backFromDetail()">‹</button>
+    <div class="paper">
+     <div class="detailhead">
+      <div class="eyebrow" id="detailRegion" style="margin:0"></div>
+      <button aria-label="더보기" class="dots" onclick="toggleMenu()">⋮</button>
+      <div class="menu" hidden="" id="moreMenu">
+       <button onclick="editEntry()">✎ 수정하기</button>
+       <button class="danger" onclick="deleteEntry()">♧ 삭제하기</button>
+      </div>
+     </div>
+     <h1 class="heading" id="detailTitle"></h1>
+     <p class="sub" id="detailMeta"></p>
+     <div id="detailPhoto"></div>
+     <p class="diarytext" id="detailText"></p>
+    </div>
+   </section>
+   <section class="screen" id="editor">
+    <button class="back" onclick="go('home')">‹</button>
+    <div class="eyebrow">WRITE YOUR STORY</div>
+    <h1 class="heading" id="editorHeading">새로운 기록</h1>
+    <p class="sub">오늘 발견한 동네의 이야기를 남겨보세요.</p>
+    <form id="diaryForm">
+     <label class="field" for="area">지역</label>
+     <select id="province" required=""><option value="">시·도를 선택하세요</option></select>
+     <label class="field" for="area">시·군·구</label>
+     <select disabled="" id="area" required=""><option value="">먼저 시·도를 선택하세요</option></select>
+     <div class="conditional" hidden="" id="districtWrap">
+      <label class="field" for="district">구</label>
+      <select id="district"><option value="">구를 선택하세요</option></select>
+     </div>
+     <label class="field" for="place">방문 장소</label>
+     <input id="place" maxlength="80" placeholder="예: 동네 작은 카페" required=""/>
+     <label class="field" for="date">방문 날짜</label>
+     <input id="date" required="" type="date"/>
+     <label class="field" for="diaryTitle">일기 제목</label>
+     <input id="diaryTitle" maxlength="100" placeholder="오늘 발견한 작은 이야기" required=""/>
+     <label class="field" for="photo">사진 (선택)</label>
+     <input accept="image/*" id="photo" type="file"/>
+     <div id="photoPreview"></div>
+     <label class="field" for="memo">오늘의 기록</label>
+     <textarea id="memo" placeholder="어떤 순간이 기억에 남았나요?" required=""></textarea>
+     <button class="primary" id="saveButton" type="submit">아카이브에 저장하기</button>
+    </form>
+   </section>
+   <section class="screen" id="calendar">
+    <button class="back" onclick="go('home')">‹</button>
+    <div class="eyebrow">MEMORY CALENDAR</div>
+    <h1 class="heading">달력으로 보기</h1>
+    <div class="section calendar-controls">
+     <button aria-label="이전 달 또는 연도" class="secondary" id="calendarPrev" onclick="shiftCalendar(-1)">‹</button>
+     <button aria-label="연간 달력 전환" class="month-toggle" id="monthLabel" onclick="toggleYearView()"></button>
+     <button aria-label="다음 달 또는 연도" class="secondary" id="calendarNext" onclick="shiftCalendar(1)">›</button>
+    </div>
+    <div class="calendar" id="calendarGrid"></div>
+    <div class="year-grid" hidden="" id="yearGrid"></div>
+    <div class="section"><h3 id="selectedLabel">이날의 기록</h3></div>
+    <div id="dayEntries"></div>
+   </section>
+   <button aria-label="새 일기 작성" class="fab" id="addButton" onclick="newEntry()">+</button>
+  </main>
+  <script>
+const REGION_OPTIONS={"서울특별시": ["종로구", "중구", "용산구", "성동구", "광진구", "동대문구", "중랑구", "성북구", "강북구", "도봉구", "노원구", "은평구", "서대문구", "마포구", "양천구", "강서구", "구로구", "금천구", "영등포구", "동작구", "관악구", "서초구", "강남구", "송파구", "강동구"], "부산광역시": ["중구", "서구", "동구", "영도구", "부산진구", "동래구", "남구", "북구", "해운대구", "사하구", "금정구", "강서구", "연제구", "수영구", "사상구", "기장군"], "대구광역시": ["중구", "동구", "서구", "남구", "북구", "수성구", "달서구", "달성군", "군위군"], "인천광역시": ["중구", "동구", "미추홀구", "연수구", "남동구", "부평구", "계양구", "서구", "강화군", "옹진군"], "광주광역시": ["동구", "서구", "남구", "북구", "광산구"], "대전광역시": ["동구", "중구", "서구", "유성구", "대덕구"], "울산광역시": ["중구", "남구", "동구", "북구", "울주군"], "세종특별자치시": ["세종특별자치시"], "경기도": ["수원시", "성남시", "의정부시", "안양시", "부천시", "광명시", "평택시", "동두천시", "안산시", "고양시", "과천시", "구리시", "남양주시", "오산시", "시흥시", "군포시", "의왕시", "하남시", "용인시", "파주시", "이천시", "안성시", "김포시", "화성시", "광주시", "양주시", "포천시", "여주시", "연천군", "가평군", "양평군"], "강원특별자치도": ["춘천시", "원주시", "강릉시", "동해시", "태백시", "속초시", "삼척시", "홍천군", "횡성군", "영월군", "평창군", "정선군", "철원군", "화천군", "양구군", "인제군", "고성군", "양양군"], "충청북도": ["청주시", "충주시", "제천시", "보은군", "옥천군", "영동군", "증평군", "진천군", "괴산군", "음성군", "단양군"], "충청남도": ["천안시", "공주시", "보령시", "아산시", "서산시", "논산시", "계룡시", "당진시", "금산군", "부여군", "서천군", "청양군", "홍성군", "예산군", "태안군"], "전북특별자치도": ["전주시", "군산시", "익산시", "정읍시", "남원시", "김제시", "완주군", "진안군", "무주군", "장수군", "임실군", "순창군", "고창군", "부안군"], "전라남도": ["목포시", "여수시", "순천시", "나주시", "광양시", "담양군", "곡성군", "구례군", "고흥군", "보성군", "화순군", "장흥군", "강진군", "해남군", "영암군", "무안군", "함평군", "영광군", "장성군", "완도군", "진도군", "신안군"], "경상북도": ["포항시", "경주시", "김천시", "안동시", "구미시", "영주시", "영천시", "상주시", "문경시", "경산시", "의성군", "청송군", "영양군", "영덕군", "청도군", "고령군", "성주군", "칠곡군", "예천군", "봉화군", "울진군", "울릉군"], "경상남도": ["창원시", "진주시", "통영시", "사천시", "김해시", "밀양시", "거제시", "양산시", "의령군", "함안군", "창녕군", "고성군", "남해군", "하동군", "산청군", "함양군", "거창군", "합천군"], "제주특별자치도": ["제주시", "서귀포시"]};
+const DISTRICTS={"수원시":["장안구","권선구","팔달구","영통구"],"성남시":["수정구","중원구","분당구"],"안양시":["만안구","동안구"],"안산시":["상록구","단원구"],"고양시":["덕양구","일산동구","일산서구"],"용인시":["처인구","기흥구","수지구"],"청주시":["상당구","서원구","흥덕구","청원구"],"천안시":["동남구","서북구"],"전주시":["완산구","덕진구"],"포항시":["남구","북구"],"창원시":["의창구","성산구","마산합포구","마산회원구","진해구"]};
+const DB='localit-archive-v1',STORE='diaries';let db,entries=[],currentId=null,editingId=null,returnRegion=null,chosenPhoto=null,calMonth=new Date(),selectedDate='',yearView=false;
+const $ = id => document.getElementById(id);
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[char]));
+}
+const esc = escapeHTML;
+function decodeUTF8(bytes) { return new TextDecoder('utf-8', {fatal: true}).decode(bytes); }
+function encodeUTF8(value) { return new TextEncoder().encode(String(value)); }
+
+function setupRegions(){ $('province').innerHTML='<option value="">시·도를 선택하세요</option>'+Object.keys(REGION_OPTIONS).map(x=>`<option value="${x}">${x}</option>`).join('');$('province').onchange=()=>setCities('');$('area').onchange=()=>setDistricts('') }
+function setCities(selected){const province=$('province').value, isSejong=province==='세종특별자치시', options=isSejong?[]:(REGION_OPTIONS[province]||[]);$('area').parentElement; $('area').disabled=!province||isSejong;$('area').previousElementSibling.hidden=isSejong;$('area').hidden=isSejong;$('area').required=!isSejong;$('area').innerHTML='<option value="">시·군·구를 선택하세요</option>'+options.map(x=>`<option value="${x}">${x}</option>`).join('');$('area').value=isSejong?'':(selected||'');setDistricts('')}
+function setDistricts(selected){const city=$('area').value,options=DISTRICTS[city]||[],visible=options.length>0;$('districtWrap').hidden=!visible;$('district').disabled=!visible;$('district').required=visible;$('district').innerHTML='<option value="">구를 선택하세요</option>'+options.map(x=>`<option value="${x}">${x}</option>`).join('');$('district').value=visible?(selected||''):''}
+function request(r){return new Promise((resolve,reject)=>{r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})}
+async function init(){setupRegions();db=await new Promise((resolve,reject)=>{const r=indexedDB.open(DB,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE,{keyPath:'id'});r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});await refresh();go('home')}
+function store(mode){return db.transaction(STORE,mode).objectStore(STORE)}
+async function refresh(){entries=(await request(store('readonly').getAll())).sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);renderHome();renderAlbums();renderCalendar()}
+function go(id){document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.id===id));$('addButton').style.display=id==='home'?'block':'none';if(id==='calendar')renderCalendar();if(id==='home')renderHomeCalendar();if(id==='home')$('home').scrollTop=0;window.scrollTo(0,0)}
+function provinceOf(e){return e.province||Object.keys(REGION_OPTIONS).find(k=>(REGION_OPTIONS[k]||[]).includes(e.area))||e.area||'지역 미지정'}
+function groups(){return [...new Set(entries.map(provinceOf))]}
+function provinceEntries(p){return entries.filter(e=>provinceOf(e)===p)}
+function photoCard(label,list,attribute,value,subtitle){const photo=list.find(e=>e.photo)?.photo;return `<button class="album" ${attribute}="${esc(value)}"><div class="album-art">${photo?`<img src="${photo}" alt="">`:'✿'}</div><strong>${esc(label)}</strong><small>${esc(subtitle||list.length+'개의 추억')}</small></button>`}
+function albumCard(p){return photoCard(p,provinceEntries(p),'data-province',p)}
+function bindAlbums(container){container.querySelectorAll('[data-province]').forEach(b=>b.onclick=()=>showProvince(b.dataset.province))}
+let currentProvince='',currentCity='',currentDistrict='';
+function showProvince(p){currentProvince=p;returnRegion=p;const list=provinceEntries(p);$('regionTitle').textContent=p;$('regionSub').textContent=`${list.length}개의 기록 · 지역을 선택하세요.`;const cities=[...new Set(list.map(e=>e.area||p))];$('cityAlbums').innerHTML=cities.map(c=>photoCard(c,list.filter(e=>(e.area||p)===c),'data-city',c)).join('');$('cityAlbums').querySelectorAll('[data-city]').forEach(b=>b.onclick=()=>showCity(b.dataset.city));go('region')}
+function cityEntries(){return provinceEntries(currentProvince).filter(e=>(e.area||currentProvince)===currentCity)}
+function showCity(c){currentCity=c;const list=cityEntries(),districts=[...new Set(list.map(e=>e.district||'구 미지정'))];if(!list.some(e=>e.district)){currentDistrict='';$('districtTitle').textContent=c;$('districtSub').textContent=`${list.length}개의 기록을 모았어요.`;fillEntries('regionEntries',list);go('districtScreen');return}$('cityTitle').textContent=c;$('citySub').textContent=`${list.length}개의 기록 · 구를 선택하세요.`;$('districtAlbums').innerHTML=districts.map(d=>photoCard(d,list.filter(e=>(e.district||'구 미지정')===d),'data-district',d)).join('');$('districtAlbums').querySelectorAll('[data-district]').forEach(b=>b.onclick=()=>showDistrict(b.dataset.district));go('cityScreen')}
+function showDistrict(d){currentDistrict=d;const list=cityEntries().filter(e=>(e.district||'구 미지정')===d);$('districtTitle').textContent=d;$('districtSub').textContent=`${list.length}개의 기록을 모았어요.`;fillEntries('regionEntries',list);go('districtScreen')}
+function backToCity(){if(cityEntries().some(e=>e.district))showCity(currentCity);else showProvince(currentProvince)}
+function entryCard(e){return `<button class="entry" data-id="${e.id}"><div class="thumb">${e.photo?`<img src="${e.photo}" alt="">`:'✿'}</div><div><strong>${esc(e.title)}</strong><p>${esc(e.place)} · ${esc(e.date)}</p><small>${esc(e.memo.slice(0,35))}${e.memo.length>35?'…':''}</small></div></button>`}
+function bindEntries(container){container.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>showDetail(Number(b.dataset.id)))}
+function fillEntries(id,list){$(id).innerHTML=list.length?list.map(entryCard).join(''):'<div class="empty">아직 기록이 없어요.<br>첫 번째 동네 이야기를 남겨보세요 ✎</div>';bindEntries($(id))}
+function renderHome(){$('count').textContent=entries.length;$('regions').textContent=groups().length;const recent=[...entries].sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id).slice(0,7);$('homeAlbums').innerHTML=recent.map(entryCard).join('')||'<div class="empty">아직 기록이 없어요.<br>새 기록을 남기면 이곳에 표시돼요.</div>';bindEntries($('homeAlbums'));renderHomeCalendar()}
+function renderAlbums(){$('allAlbums').innerHTML=groups().map(albumCard).join('')||'<div class="empty" style="grid-column:span 2">기록을 추가하면 지역별 앨범이 생겨요.</div>';bindAlbums($('allAlbums'))}
+function backFromDetail(){if(detailOrigin==='districtScreen'){if(currentDistrict)showDistrict(currentDistrict);else showCity(currentCity)}else go(detailOrigin||'home')}
+let detailOrigin='home';function showDetail(id){detailOrigin=document.querySelector('.screen.active')?.id||'home';const e=entries.find(x=>x.id===id);if(!e)return;currentId=id;$('moreMenu').hidden=true;$('detailRegion').textContent=(e.district?e.area+' '+e.district:e.area).toUpperCase()+' · LOCAL DIARY';$('detailTitle').textContent=e.title;$('detailMeta').textContent=e.date+'  |  '+e.place;$('detailPhoto').innerHTML=e.photo?`<img class="cover" src="${e.photo}" alt="방문 사진">`:'<div class="placeholder">✿</div>';$('detailText').textContent=e.memo;go('detail')}
+function toggleMenu(){$('moreMenu').hidden=!$('moreMenu').hidden}
+function newEntry(){editingId=null;chosenPhoto=null;$('diaryForm').reset();setCities('');$('date').value=new Date().toLocaleDateString('sv-SE');$('photoPreview').innerHTML='';$('editorHeading').textContent='새로운 기록';$('saveButton').textContent='아카이브에 저장하기';go('editor')}
+function editEntry(){const e=entries.find(x=>x.id===currentId);if(!e)return;editingId=e.id;chosenPhoto=e.photo||null;const province=e.province||Object.keys(REGION_OPTIONS).find(k=>REGION_OPTIONS[k].includes(e.area))||'';$('province').value=province;setCities(e.area);setDistricts(e.district||'');$('place').value=e.place;$('date').value=e.date;$('diaryTitle').value=e.title;$('memo').value=e.memo;$('photo').value='';preview();$('editorHeading').textContent='기록 수정하기';$('saveButton').textContent='수정 내용 저장하기';go('editor')}
+async function deleteEntry(){$('moreMenu').hidden=true;if(!confirm('이 일기를 삭제할까요? 삭제한 기록은 되돌릴 수 없어요.'))return;await request(store('readwrite').delete(currentId));currentId=null;await refresh();go('home')}
+function preview(){$('photoPreview').innerHTML=chosenPhoto?`<img class="preview" src="${chosenPhoto}" alt="첨부 사진"><button type="button" class="secondary" id="removePhoto">사진 제거</button>`:'';if($('removePhoto'))$('removePhoto').onclick=()=>{chosenPhoto=null;$('photo').value='';preview()}}
+$('photo').onchange=async e=>{const f=e.target.files[0];if(!f)return;if(f.size>12*1024*1024){alert('12MB 이하 사진을 선택해 주세요.');e.target.value='';return}const img=new Image(),url=URL.createObjectURL(f);try{await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;img.src=url});const scale=Math.min(1,1100/img.width,1100/img.height),c=document.createElement('canvas');c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);c.getContext('2d').drawImage(img,0,0,c.width,c.height);chosenPhoto=c.toDataURL('image/jpeg',.76);preview()}catch{alert('사진을 불러올 수 없어요.')}finally{URL.revokeObjectURL(url)}};
+$('diaryForm').onsubmit=async ev=>{ev.preventDefault();const e={id:editingId??Date.now(),province:$('province').value,area:$('province').value==='세종특별자치시'?'세종특별자치시':$('area').value.trim(),district:$('district').value,place:$('place').value.trim(),date:$('date').value,title:$('diaryTitle').value.trim(),memo:$('memo').value.trim(),photo:chosenPhoto};if(!e.province||!e.area||(DISTRICTS[e.area]&&!e.district)||!e.place||!e.title||!e.memo)return;try{await request(store('readwrite').put(e));await refresh();showDetail(e.id)}catch(err){alert('저장하지 못했어요. 브라우저 저장 공간을 확인해 주세요.')}};
+let homeMonth=new Date();
+function shiftHomeMonth(n){homeMonth=new Date(homeMonth.getFullYear(),homeMonth.getMonth()+n,1);renderHomeCalendar()}
+function openFullCalendar(){calMonth=new Date(homeMonth.getFullYear(),homeMonth.getMonth(),1);yearView=false;selectedDate='';go('calendar')}
+function renderHomeCalendar(){const y=homeMonth.getFullYear(),m=homeMonth.getMonth(),first=new Date(y,m,1).getDay(),days=new Date(y,m+1,0).getDate();$('homeMonthLabel').textContent=`${y}. ${String(m+1).padStart(2,'0')}`;let h=['일','월','화','수','목','금','토'].map(x=>`<div class="week">${x}</div>`).join('');for(let i=0;i<first;i++)h+='<div></div>';for(let d=1;d<=days;d++){const date=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`,has=entries.some(e=>e.date===date);h+=`<button class="day ${has?'has':''}" data-date="${date}" aria-label="${date}${has?' 기록 있음':''}">${d}${has?' •':''}</button>`}$('homeCalendarGrid').innerHTML=h;$('homeCalendarGrid').querySelectorAll('[data-date]').forEach(b=>b.onclick=()=>{calMonth=new Date(y,m,1);yearView=false;selectedDate=b.dataset.date;go('calendar')})}
+function shiftCalendar(n){calMonth=new Date(calMonth.getFullYear()+(yearView?n:0),yearView?calMonth.getMonth():calMonth.getMonth()+n,1);selectedDate='';renderCalendar()}
+function toggleYearView(){yearView=!yearView;selectedDate='';renderCalendar()}
+function renderCalendar(){const y=calMonth.getFullYear(),m=calMonth.getMonth();$('monthLabel').textContent=yearView?`${y}년`:`${y}. ${String(m+1).padStart(2,'0')}`;$('calendarGrid').hidden=yearView;$('yearGrid').hidden=!yearView;$('selectedLabel').textContent=yearView?'월을 선택해 주세요':selectedDate?selectedDate+'의 기록':'날짜를 선택해 주세요';if(yearView){let html='';for(let month=0;month<12;month++){const first=new Date(y,month,1).getDay(),days=new Date(y,month+1,0).getDate();let dots='';for(let i=0;i<first;i++)dots+='<span class="mini-empty"></span>';for(let d=1;d<=days;d++){const date=`${y}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;dots+=`<span class="mini-dot ${entries.some(e=>e.date===date)?'visited':''}" title="${date}"></span>`}html+=`<button class="mini-month" data-month="${month}" aria-label="${y}년 ${month+1}월 보기"><strong>${month+1}월</strong><span class="mini-days">${dots}</span></button>`}$('yearGrid').innerHTML=html;$('yearGrid').querySelectorAll('[data-month]').forEach(b=>b.onclick=()=>{calMonth=new Date(y,Number(b.dataset.month),1);yearView=false;renderCalendar()});fillEntries('dayEntries',[]);return}
+const first=new Date(y,m,1).getDay(),days=new Date(y,m+1,0).getDate();let h=['일','월','화','수','목','금','토'].map(x=>`<div class="week">${x}</div>`).join('');for(let i=0;i<first;i++)h+='<div></div>';for(let d=1;d<=days;d++){let date=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;h+=`<button class="day ${entries.some(e=>e.date===date)?'has':''} ${selectedDate===date?'selected':''}" data-date="${date}">${d}${entries.some(e=>e.date===date)?' •':''}</button>`}$('calendarGrid').innerHTML=h;$('calendarGrid').querySelectorAll('[data-date]').forEach(b=>b.onclick=()=>{selectedDate=b.dataset.date;renderCalendar()});fillEntries('dayEntries',selectedDate?entries.filter(e=>e.date===selectedDate):[])}
+init().catch(()=>alert('이 브라우저에서는 기록 저장 기능을 시작할 수 없어요. 다른 최신 브라우저를 사용해 주세요.'));
+<\/script>
+ </body>
+</html>
+</script>
+
+<script type="text/plain" id="src-stamp">
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>고양 골목 탐험 도장판 🐾</title>
+
+  <script src="https://cdn.tailwindcss.com"><\/script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            skyPastel: '#dce7d9',
+            skyBright: '#a9c1ac',
+            skyPrimary: '#365f50',
+            skyAccent: '#264a3d',
+            pastelBg: '#f7f5eb',
+            creamBg: '#f7f5eb',
+            sky: {50:'#f7f5eb',100:'#eef1e6',200:'#e4e6dc',300:'#a9c1ac',800:'#263e35'},
+            amber: {50:'#f7f5eb',200:'#cbd7c9',300:'#a9c1ac',400:'#365f50',500:'#2c4f42',800:'#365f50',900:'#263e35',950:'#f7f5eb'},
+            yellow: {50:'#f1f4e8'},
+            orange: {50:'#dce7d9',600:'#365f50'},
+            indigo: {300:'#7fa08c'},
+          },
+          fontFamily: {
+            gaegu: ['Georgia', 'Malgun Gothic', 'serif'],
+            gowun: ['Apple SD Gothic Neo', 'Malgun Gothic', 'Arial', 'sans-serif'],
+          }
+        }
+      }
+    }
+  <\/script>
+
+  <style>
+    body { font-family: Arial,"Apple SD Gothic Neo","Malgun Gothic",sans-serif; background-color: #f7f5eb; color: #263e35; }
+    .font-cute { font-family: Georgia,"Malgun Gothic",serif; }
+
+    @keyframes stampBounce {
+      0% { transform: scale(3) rotate(-15deg); opacity: 0; }
+      50% { transform: scale(0.9) rotate(5deg); opacity: 1; }
+      75% { transform: scale(1.1) rotate(-3deg); }
+      100% { transform: scale(1) rotate(0deg); opacity: 1; }
+    }
+    .animate-stamp { animation: stampBounce 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+    @keyframes shine {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    .coupon-shine {
+      background-image: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.55) 50%, transparent 70%);
+      background-size: 200% 100%;
+      animation: shine 3s linear infinite;
+    }
+
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #dce7d9; }
+    ::-webkit-scrollbar-thumb { background: #a9c1ac; border-radius: 9999px; }
+
+    .ticket { position: relative; }
+    .ticket::before, .ticket::after {
+      content: ''; position: absolute; top: 50%; width: 28px; height: 28px;
+      background: #f7f5eb; border-radius: 9999px; transform: translateY(-50%);
+    }
+    .ticket::before { left: -14px; border-right: 2px solid #a9c1ac; }
+    .ticket::after { right: -14px; border-left: 2px solid #a9c1ac; }
+    .ticket.used::before { border-right-color: #CBD5E1; }
+    .ticket.used::after { border-left-color: #CBD5E1; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <header class="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-sky-200 shadow-sm">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
+      <div class="w-12 h-12 bg-skyBright/30 rounded-2xl flex items-center justify-center text-2xl shadow-inner border border-skyBright">🐾</div>
+      <div>
+        <h1 class="font-cute text-2xl sm:text-3xl font-bold text-sky-800 tracking-wide flex items-center gap-1.5">
+          숨은 고양 찾기 <span class="text-xs font-gowun bg-skyPrimary text-white px-2 py-0.5 rounded-full font-normal">스탬프 투어</span>
+        </h1>
+        <p class="text-xs text-slate-500">도장을 모두 모으면 로컬 쿠폰이 발급돼요</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-grow max-w-4xl w-full mx-auto p-4 sm:p-6 space-y-6">
+
+    <div class="bg-gradient-to-r from-skyPrimary via-skyBright to-indigo-300 p-6 rounded-3xl text-white shadow-md relative overflow-hidden">
+      <div class="relative z-10">
+        <span class="bg-white/20 px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase">Local Stamp Tour</span>
+        <h2 class="font-cute text-3xl sm:text-4xl font-bold mt-2">고양시 골목 탐험 도장판 🐾</h2>
+        <p class="text-xs sm:text-sm text-sky-50 mt-1 max-w-xl">
+          고양시 곳곳의 퀘스트를 완료하고 귀여운 도장을 모아보세요! 6개를 모두 모으면 특별 쿠폰이 발급됩니다 🎁
+        </p>
+
+        <div class="mt-4 bg-white/20 p-3 rounded-2xl max-w-md border border-white/30">
+          <div class="flex justify-between text-xs font-bold mb-1">
+            <span>달성률</span>
+            <span id="stamp-progress-text">0 / 6 완료</span>
+          </div>
+          <div class="w-full bg-white/30 rounded-full h-3 overflow-hidden">
+            <div id="stamp-progress-bar" class="bg-creamBg h-full w-0 transition-all duration-500 rounded-full"></div>
+          </div>
+        </div>
+      </div>
+      <div class="absolute -right-6 -bottom-6 text-8xl opacity-20 pointer-events-none select-none">🐱</div>
+    </div>
+
+    <section id="couponSection" class="hidden"></section>
+
+    <div class="bg-white p-6 rounded-3xl border border-sky-200 shadow-sm">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="font-cute text-2xl font-bold text-slate-800 flex items-center gap-2">
+          Stamp Collector Card <span class="text-xs font-gowun text-skyPrimary font-normal">(터치하여 도장 찍기)</span>
+        </h3>
+        <button onclick="resetAll()" class="text-xs text-slate-400 hover:text-rose-500 underline">전체 초기화</button>
+      </div>
+      <div id="stampGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-4"></div>
+    </div>
+
+    <div class="bg-white p-6 rounded-3xl border border-sky-200 shadow-sm">
+      <h3 class="font-cute text-2xl font-bold text-slate-800 mb-4 flex items-center gap-2">🎯 진행 가능한 동네 퀘스트</h3>
+      <div id="questList" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+    </div>
+
+  </main>
+
+  <footer class="bg-white border-t border-sky-100 py-6 mt-12 text-center text-xs text-slate-400">
+    <div class="max-w-4xl mx-auto px-4 space-y-2">
+      <p class="font-cute text-base text-sky-800">🐾 고양 로컬 콘텐츠 & 브랜딩 프로젝트</p>
+      <p>경기도 고양시를 새로운 시선으로 기록하고 골목상권을 활성화합니다.</p>
+    </div>
+  </footer>
+
+  <div id="couponModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-xl border border-amber-200 text-center space-y-3 animate-stamp">
+      <div class="text-6xl">🎉</div>
+      <h3 class="font-cute text-3xl font-bold text-amber-900">스탬프 투어 완주!</h3>
+      <p class="text-sm text-slate-600">고양시 골목 6곳을 모두 탐험했어요.<br>축하 쿠폰이 발급되었습니다 🎁</p>
+      <button onclick="closeCouponModal()" class="w-full mt-2 px-5 py-2.5 bg-amber-400 hover:bg-amber-500 text-amber-950 font-bold rounded-2xl font-cute text-xl shadow-sm transition-all">
+        내 쿠폰 확인하기
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const spots = [
+      { id: 1, title: "밤리단길 카페거리", category: "카페", quest: "밤리단길 시그니처 디저트 맛보고 사진 찍기 🍰", stampIcon: "🐾" },
+      { id: 2, title: "일산호수공원", category: "자연", quest: "호수 둘레길 산책하며 예쁜 풍경 인증샷 찍기 🚲", stampIcon: "🌸" },
+      { id: 3, title: "행주산성", category: "문화유산", quest: "행주산성 역사 산책길에서 한강 전경 바라보기 🏯", stampIcon: "⭐" },
+      { id: 4, title: "서오릉", category: "문화유산", quest: "울창한 왕릉 소나무 숲길 30분 걸어보기 🌲", stampIcon: "🌿" },
+      { id: 5, title: "고양가와지밥박물관", category: "박물관", quest: "가와지 벼 이야기 읽고 한반도 벼 역사퀴즈 풀기 🌾", stampIcon: "🌾" },
+      { id: 6, title: "원당 화훼단지 골목", category: "자연", quest: "마음에 드는 작은 다육식물 모종 하나 찾아보기 🪴", stampIcon: "🪴" }
+    ];
+
+    const COUPON_NAME = "고양 로컬 스탬프 투어 완주 쿠폰";
+    const COUPON_BENEFIT = "제휴 로컬 매장 10% 할인";
+    const COUPON_VALID_DAYS = 30;
+
+    function load(key, fallback) {
+      try {
+        const v = localStorage.getItem(key);
+        return v ? JSON.parse(v) : fallback;
+      } catch (e) { return fallback; }
+    }
+    function save(key, value) {
+      try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+    }
+
+    let userStamps = load('goyang_stamps', null);
+    if (!Array.isArray(userStamps) || userStamps.length !== spots.length) {
+      userStamps = spots.map(() => false);
+    }
+    let coupon = load('goyang_coupon', null);
+
+    window.onload = function () {
+      renderStamps();
+      renderQuests();
+      renderCoupon();
+    };
+
+    function renderStamps() {
+      const grid = document.getElementById('stampGrid');
+      const completed = userStamps.filter(Boolean).length;
+
+      grid.innerHTML = spots.map((spot, idx) => {
+        const stamped = userStamps[idx];
+        return `
+          <div onclick="toggleStamp(${idx})"
+               class="relative aspect-square bg-skyPastel/20 border-2 ${stamped ? 'border-skyPrimary bg-skyPastel/50' : 'border-dashed border-sky-300'} rounded-2xl p-2 flex flex-col items-center justify-center text-center cursor-pointer hover:shadow-md transition-all group">
+            ${stamped ? `
+              <div class="animate-stamp text-4xl sm:text-5xl select-none">${spot.stampIcon}</div>
+              <span class="font-cute text-sm font-bold text-skyAccent mt-1">도장 완료!</span>
+              <span class="text-[10px] text-slate-500 mt-0.5">${spot.title}</span>
+            ` : `
+              <div class="text-3xl opacity-30 group-hover:opacity-60 transition-opacity">🐾</div>
+              <span class="text-[11px] font-medium text-slate-400 mt-1">${spot.title}</span>
+              <span class="text-[9px] text-skyPrimary opacity-0 group-hover:opacity-100 transition-opacity">터치 시 도장</span>
+            `}
+            <span class="absolute top-1.5 left-2 text-[10px] font-bold text-slate-300">#0${idx + 1}</span>
+          </div>
+        `;
+      }).join('');
+
+      document.getElementById('stamp-progress-text').innerText = `${completed} / ${spots.length} 완료`;
+      document.getElementById('stamp-progress-bar').style.width = `${(completed / spots.length) * 100}%`;
+    }
+
+    function toggleStamp(idx) {
+      userStamps[idx] = !userStamps[idx];
+      save('goyang_stamps', userStamps);
+      renderStamps();
+      renderQuests();
+
+      if (userStamps[idx]) {
+        showToast(`🎉 [${spots[idx].title}] 퀘스트 도장을 찍었습니다!`);
+      }
+
+      if (userStamps.every(Boolean) && !coupon) {
+        issueCoupon();
+      }
+    }
+
+    function resetAll() {
+      const msg = coupon && !coupon.used
+        ? '모든 도장과 발급된 쿠폰(미사용)이 삭제됩니다. 초기화하시겠습니까?'
+        : '모든 도장을 초기화하시겠습니까?';
+      if (!confirm(msg)) return;
+      userStamps = spots.map(() => false);
+      coupon = null;
+      save('goyang_stamps', userStamps);
+      try { localStorage.removeItem('goyang_coupon'); } catch (e) {}
+      renderStamps();
+      renderQuests();
+      renderCoupon();
+    }
+
+    function renderQuests() {
+      const container = document.getElementById('questList');
+      container.innerHTML = spots.map((spot, idx) => {
+        const done = userStamps[idx];
+        return `
+          <div class="p-4 rounded-2xl border ${done ? 'bg-skyPastel/30 border-skyPrimary/40' : 'bg-white border-sky-100'} flex items-center justify-between gap-3">
+            <div class="space-y-1">
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${done ? 'bg-skyPrimary text-white' : 'bg-slate-100 text-slate-600'}">
+                ${done ? '완료됨 ✨' : '도전 가능'}
+              </span>
+              <h4 class="font-bold text-slate-800 text-sm">${spot.title}</h4>
+              <p class="text-xs text-slate-600">${spot.quest}</p>
+            </div>
+            <button onclick="toggleStamp(${idx})"
+                    class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${done ? 'bg-slate-200 text-slate-600' : 'bg-skyPrimary hover:bg-skyAccent text-white shadow-sm'}">
+              ${done ? '도장 취소' : '도장 찍기 🐾'}
+            </button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function generateCouponCode() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let part = '';
+      for (let i = 0; i < 8; i++) part += chars[Math.floor(Math.random() * chars.length)];
+      return `GY-${part.slice(0, 4)}-${part.slice(4)}`;
+    }
+
+    function issueCoupon() {
+      const now = new Date();
+      const expires = new Date(now.getTime() + COUPON_VALID_DAYS * 24 * 60 * 60 * 1000);
+      coupon = {
+        code: generateCouponCode(),
+        issuedAt: now.toISOString(),
+        expiresAt: expires.toISOString(),
+        used: false
+      };
+      save('goyang_coupon', coupon);
+      renderCoupon();
+      document.getElementById('couponModal').classList.remove('hidden');
+    }
+
+    function closeCouponModal() {
+      document.getElementById('couponModal').classList.add('hidden');
+      const sec = document.getElementById('couponSection');
+      if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function formatDate(iso) {
+      const d = new Date(iso);
+      return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    const CODE128_PATTERNS = [
+      "212222","222122","222221","121223","121322","131222","122213","122312","132212","221213",
+      "221312","231212","112232","122132","122231","113222","123122","123221","223211","221132",
+      "221231","213212","223112","312131","311222","321122","321221","312212","322112","322211",
+      "212123","212321","232121","111323","131123","131321","112313","132113","132311","211313",
+      "231113","231311","112133","112331","132131","113123","113321","133121","313121","211331",
+      "231131","213113","213311","213131","311123","311321","331121","312113","312311","332111",
+      "314111","221411","431111","111224","111422","121124","121421","141122","141221","112214",
+      "112412","122114","122411","142112","142211","241211","221114","413111","241112","134111",
+      "111242","121142","121241","114212","124112","124211","411212","421112","421211","212141",
+      "214121","412121","111143","111341","131141","114113","114311","411113","411311","113141",
+      "114131","311141","411131","211412","211214","211232","2331112"
+    ];
+
+    function code128Svg(text, height = 64) {
+      const START_B = 104, STOP = 106;
+      const values = [START_B];
+      for (const ch of text) {
+        const v = ch.charCodeAt(0) - 32;
+        if (v < 0 || v > 94) return '';
+        values.push(v);
+      }
+      let sum = START_B;
+      for (let i = 1; i < values.length; i++) sum += values[i] * i;
+      values.push(sum % 103, STOP);
+
+      const quiet = 10;
+      let x = quiet;
+      let bars = '';
+      values.forEach(v => {
+        const pattern = CODE128_PATTERNS[v];
+        for (let i = 0; i < pattern.length; i++) {
+          const w = parseInt(pattern[i], 10);
+          if (i % 2 === 0) bars += `<rect x="${x}" y="0" width="${w}" height="${height}" fill="#0f172a"/>`;
+          x += w;
+        }
+      });
+      const total = x + quiet;
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${total} ${height}" preserveAspectRatio="none" class="w-full block" style="height:${height}px" shape-rendering="crispEdges" role="img" aria-label="쿠폰 바코드 ${text}"><rect width="${total}" height="${height}" fill="#ffffff"/>${bars}</svg>`;
+    }
+
+    function renderCoupon() {
+      const sec = document.getElementById('couponSection');
+      if (!coupon) {
+        sec.classList.add('hidden');
+        sec.innerHTML = '';
+        return;
+      }
+
+      const expired = new Date(coupon.expiresAt) < new Date();
+      const inactive = coupon.used || expired;
+      const statusLabel = coupon.used ? '사용 완료' : (expired ? '기간 만료' : '사용 가능');
+      const statusClass = inactive ? 'bg-slate-200 text-slate-600' : 'bg-emerald-100 text-emerald-700';
+
+      sec.classList.remove('hidden');
+      sec.innerHTML = `
+        <h3 class="font-cute text-2xl font-bold text-slate-800 mb-3 flex items-center gap-2">🎁 내 쿠폰</h3>
+        <div class="ticket ${inactive ? 'used' : ''} relative overflow-hidden rounded-3xl border-2 ${inactive ? 'border-slate-300 bg-slate-100' : 'border-amber-300 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50'} shadow-md">
+          ${inactive ? '' : '<div class="coupon-shine absolute inset-0 pointer-events-none"></div>'}
+          <div class="relative flex flex-col sm:flex-row">
+            <div class="flex-grow p-5 sm:p-6 space-y-2">
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${statusClass}">${statusLabel}</span>
+                <span class="text-[10px] text-slate-500">스탬프 투어 완주 보상</span>
+              </div>
+              <h4 class="font-cute text-2xl sm:text-3xl font-bold ${inactive ? 'text-slate-500' : 'text-amber-900'}">${COUPON_NAME}</h4>
+              <p class="text-lg font-bold ${inactive ? 'text-slate-500' : 'text-orange-600'}">${COUPON_BENEFIT}</p>
+              <p class="text-xs text-slate-500">
+                발급일 ${formatDate(coupon.issuedAt)} · 유효기간 ~ ${formatDate(coupon.expiresAt)}
+              </p>
+            </div>
+            <div class="sm:w-60 p-5 sm:p-6 border-t-2 sm:border-t-0 sm:border-l-2 border-dashed ${inactive ? 'border-slate-300' : 'border-amber-300'} flex flex-col items-center justify-center gap-2 text-center">
+              <span class="text-[10px] text-slate-500 font-bold">쿠폰 코드</span>
+              <div class="font-mono text-xl font-bold tracking-widest ${inactive ? 'text-slate-400 line-through' : 'text-slate-800'}">${coupon.code}</div>
+              <div class="flex gap-2 w-full">
+                <button onclick="copyCouponCode()" class="flex-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-white border border-amber-300 text-amber-800 hover:bg-amber-50 transition-all">코드 복사</button>
+                ${inactive ? '' : '<button onclick="useCoupon()" class="flex-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 hover:bg-amber-500 text-amber-950 transition-all">사용하기</button>'}
+              </div>
+            </div>
+          </div>
+          <div class="relative px-5 sm:px-6 pb-5 sm:pb-6 pt-4 border-t-2 border-dashed ${inactive ? 'border-slate-300' : 'border-amber-300'}">
+            <div class="max-w-md mx-auto ${inactive ? 'opacity-40' : ''}">
+              <div class="rounded-xl overflow-hidden border border-slate-200 bg-white p-2">
+                ${code128Svg(coupon.code)}
+                <div class="text-center font-mono text-xs tracking-[0.3em] text-slate-700 mt-1">${coupon.code}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-2">※ 매장에서 직원에게 쿠폰 화면을 보여준 뒤 '사용하기'를 눌러주세요. 사용 처리 후에는 되돌릴 수 없습니다.</p>
+      `;
+    }
+
+    function copyCouponCode() {
+      if (!coupon) return;
+      const done = () => showToast('📋 쿠폰 코드가 복사되었습니다!');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(coupon.code).then(done).catch(fallbackCopy);
+      } else {
+        fallbackCopy();
+      }
+      function fallbackCopy() {
+        const ta = document.createElement('textarea');
+        ta.value = coupon.code;
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); done(); } catch (e) { showToast('복사에 실패했어요. 코드를 직접 선택해주세요.'); }
+        ta.remove();
+      }
+    }
+
+    function useCoupon() {
+      if (!coupon || coupon.used) return;
+      if (!confirm('쿠폰을 사용 처리할까요? 사용 후에는 되돌릴 수 없어요.')) return;
+      coupon.used = true;
+      save('goyang_coupon', coupon);
+      renderCoupon();
+      showToast('✅ 쿠폰이 사용 처리되었습니다.');
+    }
+
+    function showToast(msg) {
+      const toast = document.createElement('div');
+      toast.className = 'fixed bottom-6 right-6 bg-slate-800/90 text-white text-xs px-4 py-3 rounded-2xl shadow-xl z-[60] animate-stamp font-gowun';
+      toast.innerText = msg;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+  <\/script>
+</body>
+</html>
+</script>
+
+<script>
+  // 각 탭을 처음 열 때 해당 화면의 원본 코드를 독립 프레임에 로드합니다.
+  // (지도는 보이는 상태에서 로드해야 크기가 정상 계산되므로 지연 로드)
+  const loaded = {};
+  function loadView(name) {
+    if (loaded[name]) return;
+    loaded[name] = true;
+    const raw = document.getElementById('src-' + name).textContent;
+    // 내부 스크립트 종료 태그 이스케이프(<\/script>)를 원래대로 복원
+    document.getElementById('frame-' + name).srcdoc = raw.replace(/<\\\/script/gi, '</script');
+  }
+
+  function showView(name) {
+    document.querySelectorAll('.main-tab').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+    document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
+    loadView(name);
+    try { history.replaceState(null, '', '#' + name); } catch (e) {}
+  }
+
+  document.querySelectorAll('.main-tab').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
+
+  const initial = (location.hash || '').replace('#', '');
+  showView(['map', 'archive', 'stamp'].includes(initial) ? initial : 'map');
+</script>
+</body>
+</html>
