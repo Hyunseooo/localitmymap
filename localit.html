@@ -410,10 +410,10 @@
   <script>
     const GEMINI_API_KEY = "AQ.Ab8RN6IX04aaW1ri5pQ2Ocz6MBkYQ8Fd1pGJw_q-eXEfBarIPA";
 
-    // 안정적으로 작동하는 공식 모델 라인업 설정
+    // 모델 목록 (위에서부터 차례로 시도, 오류 시 다음 모델로 넘어감)
     const GEMINI_MODELS = [
-      "gemini-2.5-flash",
-      "gemini-1.5-flash"
+      "gemini-3.8-flash",
+      "gemini-2.5-flash"
     ];
 
     let kakaoMap = null;
@@ -748,7 +748,7 @@
       const bubble = document.createElement('div');
       bubble.className = `chat-bubble ${sender}`;
       bubble.innerHTML = msg;
-      container.appendChild(bubble);
+      container.appendChild(풍선껌);
       container.scrollTop = container.scrollHeight;
     }
 
