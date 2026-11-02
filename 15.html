@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LOCALIT 지도 & AI 챗봇 (Gemini 연동)</title>
   <!-- 카카오맵 JavaScript API (services 라이브러리 포함) -->
-  <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=b3c1b3d89c3faba562c87e2765978f03&libraries=services"></script>
+  <script type="text/javascript" src="[https://dapi.kakao.com/v2/maps/sdk.js?appkey=b3c1b3d89c3faba562c87e2765978f03&libraries=services](https://dapi.kakao.com/v2/maps/sdk.js?appkey=b3c1b3d89c3faba562c87e2765978f03\&libraries=services)"></script>
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -55,7 +55,40 @@
     .chat-input { flex: 1; padding: 8px 10px; border: 1px solid #ced4da; border-radius: 4px; outline: none; font-size: 0.85rem; }
     .chat-send-btn { padding: 8px 12px; background-color: #3c1e1e; color: #ffeb00; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 0.85rem; }
     .chat-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  </style>
+  
+/* LOCALIT 메인 앱과 동일한 세이지 그린 · 크림 테마 */
+:root {
+  --localit-green: #365f50;
+  --localit-deep: #264b3d;
+  --localit-sage: #dce7d9;
+  --localit-cream: #f7f5eb;
+  --localit-ink: #263e35;
+  --localit-muted: #778579;
+  --localit-border: #e4e6dc;
+}
+body, html { color:var(--localit-ink); background:var(--localit-cream); }
+.sidebar { background:var(--localit-cream); border-right:1px solid var(--localit-border); }
+.sidebar-header, .chat-header { background:var(--localit-deep); color:#fff; }
+.sidebar-header span, .chat-header span { color:#dce7d9; }
+.tabs, .district-box, .search-box, .chat-input-area { background:#fcfbf6; border-color:var(--localit-border); }
+.tab-button { background:#fcfbf6; color:var(--localit-muted); }
+.tab-button:hover { background:#eef3ea; }
+.tab-button.active { background:#eef3ea; color:var(--localit-deep); border-bottom-color:var(--localit-green); }
+.district-select, .search-input, .chat-input { border-color:#cbd8ca; background:#fff; color:var(--localit-ink); }
+.district-select:focus, .search-input:focus, .chat-input:focus { border-color:var(--localit-green); outline:2px solid #dce7d9; outline-offset:1px; }
+.search-button, .chat-toggle-btn, .chat-send-btn { background:var(--localit-green); color:#fff; }
+.search-button:hover, .chat-send-btn:hover { background:var(--localit-deep); }
+.result-summary { background:#eef3ea; color:var(--localit-green); border-color:var(--localit-border); }
+.place-list, .chat-messages { background:var(--localit-cream); }
+.place-item { background:#fcfbf6; border-color:var(--localit-border); border-radius:10px; }
+.place-item:hover { background:#eef3ea; }
+.place-title { color:var(--localit-deep); }
+.place-address { color:var(--localit-muted); }
+.chat-window { border-color:var(--localit-border); }
+.chat-bubble.bot { background:#fff; border-color:var(--localit-border); color:var(--localit-ink); }
+.chat-bubble.user { background:var(--localit-green); color:#fff; }
+
+</style>
 </head>
 <body>
   <div class="container">
@@ -203,7 +236,7 @@
 
     const excludeKeywords = ['인테리어', '철물', '커튼', '블라인드', '조명', '설비', '공사', '자재', '원단', '가구', '타일', '지붕', '창호', '샤시', '간판'];
 
-    window.onload = function () { initMap(); };
+    window\.onload = function () { initMap(); };
 
     function initMap() {
       kakaoMap = new kakao.maps.Map(document.getElementById('map'), {
@@ -213,7 +246,7 @@
       placeSearchService = new kakao.maps.services.Places();
       infoWindow = new kakao.maps.InfoWindow({ zIndex: 2, removable: true });
 
-      kakao.maps.event.addListener(kakaoMap, 'click', function () { infoWindow.close(); });
+      kakao.maps.event.addListener(kakaoMap, 'click', function () { infoWindow\.close(); });
       kakao.maps.event.addListener(kakaoMap, 'idle', function () {
         if (!isDistrictChanging) searchPlacesByBounds();
       });
@@ -223,7 +256,7 @@
 
     function createCustomMarkerImage(colorHex) {
       const svgMarker = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="30" height="40" viewBox="0 0 24 32">
+        <svg xmlns="http\://www\.w3.org/2000/svg" width="30" height="40" viewBox="0 0 24 32">
           <path fill="${colorHex}" stroke="#FFFFFF" stroke-width="1.5" d="M12 0C5.37 0 0 5.37 0 12c0 9 12 20 12 20s12-11 12-20c0-6.63-5.37-12-12-12z"/>
           <circle cx="12" cy="11" r="4.5" fill="#FFFFFF"/>
         </svg>`;
@@ -248,7 +281,7 @@
       const selectedDistrict = document.getElementById('districtSelect').value;
 
       isDistrictChanging = true;
-      infoWindow.close();
+      infoWindow\.close();
 
       if (selectedDistrict !== '전체' && districtCoordinates[selectedDistrict]) {
         const coord = districtCoordinates[selectedDistrict];
@@ -293,10 +326,10 @@
       data.forEach(place => {
         if (accumulatedPlaces.some(item => item.id === place.id)) return;
 
-        const categoryName = place.category_name || '';
-        const placeName = place.place_name || '';
+        const categoryName = place.category_name \
+        const placeName = place.place_name \
         const isExcluded = excludeKeywords.some(keyword =>
-          categoryName.includes(keyword) || placeName.includes(keyword)
+          categoryName.includes(keyword) \
         );
 
         if (!isExcluded) accumulatedPlaces.push(place);
@@ -335,7 +368,7 @@
         itemElement.className = 'place-item';
         itemElement.innerHTML = `
           <div class="place-title">${index + 1}. ${place.place_name}</div>
-          <div class="place-address">${place.road_address_name || place.address_name}</div>
+          <div class="place-address">${place.road_address_name \
         `;
         itemElement.onclick = function () {
           kakaoMap.panTo(new kakao.maps.LatLng(place.y, place.x));
@@ -348,7 +381,7 @@
     function clearPlaceList() { document.getElementById('placeList').innerHTML = ''; }
 
     function displayMarkers(places) {
-      const markerImage = createCustomMarkerImage(categoryColors[currentCategory] || '#4D96FF');
+      const markerImage = createCustomMarkerImage(categoryColors[currentCategory] \
 
       places.forEach(place => {
         const marker = new kakao.maps.Marker({
@@ -367,7 +400,7 @@
     }
 
     function openInfoWindow(marker, place) {
-      const address = place.road_address_name || place.address_name;
+      const address = place.road_address_name \
       const phone = place.phone ? place.phone : '전화번호 정보 없음';
 
       const content = `
@@ -376,13 +409,13 @@
           <div style="margin-bottom: 4px; color: #555;">📍 ${address}</div>
           <div style="margin-bottom: 8px; color: #777; font-size: 11px;">📞 ${phone}</div>
           <div style="text-align: right;">
-            <a href="${place.place_url}" target="_blank" style="display: inline-block; padding: 4px 8px; background-color: #ffeb00; color: #3c1e1e; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 11px;">상세보기 ➔</a>
+            <a href="${place.place_url}" target="_blank" style="display: inline-block; padding: 4px 8px; background-color: #365f50; color: #ffffff; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 11px;">상세보기 ➔</a>
           </div>
         </div>
       `;
 
-      infoWindow.setContent(content);
-      infoWindow.open(kakaoMap, marker);
+      infoWindow\.setContent(content);
+      infoWindow\.open(kakaoMap, marker);
     }
 
     /* ================= Gemini AI 연동 챗봇 로직 ================= */
@@ -417,7 +450,7 @@
     }
 
     function escapeHtml(str) {
-      return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      return String(str).replace(/[&<>"']/g, c => ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": ''' }[c]));
     }
 
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -427,7 +460,7 @@
       const errors = [];
 
       for (const model of GEMINI_MODELS) {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+        const url = `https\://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
         const generationConfig = { responseMimeType: 'application/json' };
         // Flash-Lite 모델은 기본 설정으로 호출 (thinkingLevel 호환 문제 방지)
         if (!model.includes('lite')) generationConfig.thinkingConfig = { thinkingLevel: 'low' };
@@ -454,7 +487,7 @@
               console.warn(`[${model}] 시도 ${attempt + 1} 실패 (${response.status}):`, data.error.message);
 
               // 혼잡(429/503)은 1.5초 뒤 한 번 더, 그래도 안 되면 다음 모델로
-              if ((response.status === 429 || response.status === 503) && attempt === 0) {
+              if ((response.status === 429 \
                 await sleep(1500);
                 continue;
               }
@@ -472,7 +505,7 @@
         }
       }
 
-      const busy = errors.some(e => /high demand|overloaded|quota|exceeded/i.test(e));
+      const busy = errors.some(e => /high demand\
       const summary = busy
         ? 'AI 서버가 일시적으로 혼잡합니다. 잠시 후 다시 시도해 주세요.'
         : 'AI 응답을 받지 못했습니다.';
@@ -495,7 +528,7 @@ Output ONLY a raw JSON object with NO markdown formatting, NO backticks, and NO 
 }`;
 
       try {
-        if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_NEW_GEMINI_API_KEY") {
+        if (!GEMINI_API_KEY \
           throw new Error('Gemini API 키가 설정되지 않았습니다. 코드 상단의 GEMINI_API_KEY를 확인해 주세요.');
         }
 
@@ -509,7 +542,7 @@ Output ONLY a raw JSON object with NO markdown formatting, NO backticks, and NO 
           throw new Error('AI가 응답을 생성하지 못했습니다. 다시 시도해 주세요.');
         }
 
-        const aiRawText = candidateText.replace(/```json|```/g, '').trim();
+        const aiRawText = candidateText.replace(/```json\
 
         let parsedData = {};
         try {
@@ -520,8 +553,8 @@ Output ONLY a raw JSON object with NO markdown formatting, NO backticks, and NO 
 
         // "null" 문자열로 오는 경우도 방어
         const district = (parsedData.district && parsedData.district !== 'null') ? parsedData.district : null;
-        const keyword = (parsedData.keyword && parsedData.keyword !== 'null') ? parsedData.keyword : (userQuery || "맛집");
-        const aiComment = parsedData.aiComment || "검색 결과를 정리해 드릴게요!";
+        const keyword = (parsedData.keyword && parsedData.keyword !== 'null') ? parsedData.keyword : (userQuery \
+        const aiComment = parsedData.aiComment \
 
         loadingBubble.remove();
         executeKakaoMapSearchFromAI(district, keyword, aiComment);
@@ -529,7 +562,7 @@ Output ONLY a raw JSON object with NO markdown formatting, NO backticks, and NO 
       } catch (error) {
         console.error("Gemini API Error:", error);
         loadingBubble.remove();
-        appendMessage(`⚠️ ${error.message || '잠시 후 다시 시도해 주세요.'}`, 'bot');
+        appendMessage(`⚠️ ${error.message \
       } finally {
         isChatBusy = false;
         document.getElementById('chatSendBtn').disabled = false;
@@ -571,7 +604,7 @@ Output ONLY a raw JSON object with NO markdown formatting, NO backticks, and NO 
             botResponse += `
               <div style="margin-top:6px; padding:8px; background:#f1f3f5; border-radius:6px; border:1px solid #dee2e6;">
                 <b>${idx + 1}. ${p.place_name}</b><br>
-                <span style="font-size:11px; color:#666;">📍 ${p.road_address_name || p.address_name}</span><br>
+                <span style="font-size:11px; color:#666;">📍 ${p.road_address_name \
                 <a href="${p.place_url}" target="_blank" style="font-size:11px; color:#3c1e1e; font-weight:bold; text-decoration:none;">상세보기 ➔</a>
               </div>
             `;
