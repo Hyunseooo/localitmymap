@@ -311,7 +311,6 @@
   </style>
 </head>
 <body>
-
   <div class="container">
     <div class="sidebar">
       <div class="sidebar-header">
@@ -409,12 +408,10 @@
 
   <script>
     // 도메인 제한 설정이 완료된 Gemini API 키 적용
-    // (노출된 키라면 Google AI Studio에서 새로 발급해서 이 자리에 교체하세요)
     const GEMINI_API_KEY = "AQ.Ab8RN6IX04aaW1ri5pQ2Ocz6MBkYQ8Fd1pGJw_q-eXEfBarIPA";
 
-    // 사용할 Gemini 모델 목록 (앞에서부터 시도, 모델이 없으면(404) 다음 모델로 자동 전환)
-    // gemini-flash-latest 는 항상 최신 Flash 모델을 가리키는 별칭이라 모델 교체에 강합니다.
-    const GEMINI_MODELS = ["gemini-flash-latest", "gemini-2.5-flash"];
+    // 트래픽 분산 및 백업 모델 라인업
+    const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b"];
 
     let kakaoMap = null;
     let placeSearchService = null;
@@ -722,7 +719,7 @@
       infoWindow.open(kakaoMap, marker);
     }
 
-    /* ================= Gemini AI 연동 챗봇 로직 (gemini-flash-latest + JSON 강제 + 모델 자동 전환) ================= */
+    /* ================= Gemini AI 연동 챗봇 로직 (과부하 재시도 및 모델 자동 전환 강화) ================= */
     function toggleChatWindow() {
       const chatWin = document.getElementById('chatWindow');
       chatWin.style.display = (chatWin.style.display === 'flex') ? 'none' : 'flex';
@@ -752,55 +749,63 @@
       container.scrollTop = container.scrollHeight;
     }
 
-    // Gemini 호출: 모델 목록을 순서대로 시도하고, 모델을 찾을 수 없을 때(404)만 다음 모델로 넘어갑니다.
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
     async function callGemini(promptText) {
       let lastError = null;
 
       for (const model of GEMINI_MODELS) {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
 
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              { role: 'user', parts: [{ text: promptText }] }
-            ],
-            // AI가 JSON만 출력하도록 강제 (JSON.parse 오류 방지)
-            generationConfig: { responseMimeType: "application/json" }
-          })
-        });
+        // 모델당 최대 2회 재시도 (과부하 / 트래픽 지연 대비)
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            const response = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [
+                  { role: 'user', parts: [{ text: promptText }] }
+                ]
+              })
+            });
 
-        const data = await response.json();
+            const data = await response.json();
 
-        if (data.error) {
-          lastError = new Error(data.error.message);
-          if (response.status === 404) {
-            console.warn(`모델 ${model} 사용 불가, 다음 모델로 전환합니다.`);
-            continue;
+            if (data.error) {
+              lastError = new Error(data.error.message);
+              console.warn(`[${model}] 시도 ${attempt + 1} 실패: ${data.error.message}`);
+              
+              // 429(과부하/제한)인 경우 1초 대기 후 재시도
+              if (response.status === 429 || data.error.code === 429) {
+                await sleep(1000);
+                continue;
+              }
+              break; // 다른 에러인 경우 다음 모델로 전환
+            }
+
+            return data;
+          } catch (err) {
+            lastError = err;
+            await sleep(1000);
           }
-          throw lastError;
         }
-
-        return data;
       }
 
-      throw lastError || new Error('사용 가능한 Gemini 모델을 찾지 못했습니다.');
+      throw lastError || new Error('API 트래픽이 많아 응답이 지연되었습니다. 다시 시도해 주세요.');
     }
 
     async function processChatWithGemini(userQuery) {
       appendMessage("✨ AI가 질문을 분석 중입니다...", 'bot');
 
-      const systemPrompt = `
-You are a helpful local map assistant for Goyang-si, South Korea.
+      const systemPrompt = `You are a helpful local map assistant for Goyang-si, South Korea.
 Analyze the user's Korean query and extract search intentions.
 Output ONLY a raw JSON object with NO markdown formatting, NO backticks, and NO extra text:
 {
   "district": "extracted district name in Goyang (e.g., 식사동, 화정동, 정발산동) or null",
   "keyword": "core keyword for Kakao map search (e.g., 김밥, 카페, 파스타) or null",
   "aiComment": "Friendly 1-2 sentence recommendation message in Korean summarizing why these places match their intent."
-}
-      `;
+}`;
 
       try {
         const data = await callGemini(`${systemPrompt}\n\nUser Query: "${userQuery}"`);
@@ -815,23 +820,32 @@ Output ONLY a raw JSON object with NO markdown formatting, NO backticks, and NO 
 
         let aiRawText = candidateText.trim();
         aiRawText = aiRawText.replace(/```json|```/g, '').trim();
-        
-        const parsedData = JSON.parse(aiRawText);
-        
+
+        let parsedData = {};
+        try {
+          parsedData = JSON.parse(aiRawText);
+        } catch (e) {
+          parsedData = { district: null, keyword: userQuery, aiComment: "요청하신 장소를 찾아드릴게요!" };
+        }
+
         const district = parsedData.district;
-        const keyword = parsedData.keyword || "맛집";
-        const aiComment = parsedData.aiComment;
+        const keyword = parsedData.keyword || userQuery || "맛집";
+        const aiComment = parsedData.aiComment || "검색 결과를 정리해 드릴게요!";
 
         const chatContainer = document.getElementById('chatMessages');
-        chatContainer.removeChild(chatContainer.lastChild);
+        if (chatContainer.lastChild) {
+          chatContainer.removeChild(chatContainer.lastChild);
+        }
 
         executeKakaoMapSearchFromAI(district, keyword, aiComment);
 
       } catch (error) {
         console.error("Gemini API Error:", error);
         const chatContainer = document.getElementById('chatMessages');
-        chatContainer.removeChild(chatContainer.lastChild);
-        appendMessage(`⚠️ AI 응답 오류: ${error.message || 'API 키를 확인해 주세요.'}`, 'bot');
+        if (chatContainer.lastChild) {
+          chatContainer.removeChild(chatContainer.lastChild);
+        }
+        appendMessage(`⚠️ AI 응답 오류: ${error.message || '잠시 후 다시 시도해 주세요.'}`, 'bot');
       }
     }
 
