@@ -410,8 +410,11 @@
   <script>
     const GEMINI_API_KEY = "AQ.Ab8RN6IX04aaW1ri5pQ2Ocz6MBkYQ8Fd1pGJw_q-eXEfBarIPA";
 
-    // 유효한 Gemini 모델명으로 수정
-    const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-1.5-flash"];
+    // 안정적으로 작동하는 공식 모델 라인업 설정
+    const GEMINI_MODELS = [
+      "gemini-2.5-flash",
+      "gemini-1.5-flash"
+    ];
 
     let kakaoMap = null;
     let placeSearchService = null;
@@ -745,7 +748,7 @@
       const bubble = document.createElement('div');
       bubble.className = `chat-bubble ${sender}`;
       bubble.innerHTML = msg;
-      container.appendChild(bubble); // '풍선껌' -> 'bubble' 오타 수정 완료
+      container.appendChild(bubble);
       container.scrollTop = container.scrollHeight;
     }
 
@@ -755,29 +758,30 @@
       for (const model of GEMINI_MODELS) {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
 
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              { role: 'user', parts: [{ text: promptText }] }
-            ],
-            generationConfig: { responseMimeType: "application/json" }
-          })
-        });
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [
+                { role: 'user', parts: [{ text: promptText }] }
+              ],
+              generationConfig: { responseMimeType: "application/json" }
+            })
+          });
 
-        const data = await response.json();
+          const data = await response.json();
 
-        if (data.error) {
-          lastError = new Error(data.error.message);
-          if (response.status === 404) {
-            console.warn(`모델 ${model} 사용 불가, 다음 모델로 전환합니다.`);
-            continue;
+          if (data.error) {
+            lastError = new Error(data.error.message);
+            console.warn(`[${model}] 호출 오류: ${data.error.message}. 다음 모델로 재시도합니다.`);
+            continue; // 에러 발생 시 다음 모델로 바로 통과
           }
-          throw lastError;
-        }
 
-        return data;
+          return data;
+        } catch (err) {
+          lastError = err;
+        }
       }
 
       throw lastError || new Error('사용 가능한 Gemini 모델을 찾지 못했습니다.');
