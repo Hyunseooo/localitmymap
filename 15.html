@@ -150,7 +150,7 @@
 
   <script>
     // ⚠️ 새로 발급받은 Gemini API 키를 여기에 넣으세요. (Google AI Studio에서 발급, 도메인 제한 필수)
-    const GEMINI_API_KEY = "AQ.Ab8RN6JEIc_7HI8GgM55v4tTFinJUyl-YEAVfJ5wrICNMM0RZQ";
+    const GEMINI_API_KEY = "YOUR_NEW_GEMINI_API_KEY";
 
     // 종료된 구형 모델 제거 → 현재 지원되는 모델만 사용 (앞 모델 실패 시 다음 모델로 자동 전환)
     const GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.7-flash"];
@@ -431,8 +431,14 @@
 
         for (let attempt = 0; attempt < 2; attempt++) {
           try {
-            const response = await fetch(url, {
+            console.log(`[${model}] 요청 시작 (시도 ${attempt + 1})`);
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 20000); // 20초 넘으면 중단
+            let response;
+            try {
+              response = await fetch(url, {
               method: 'POST',
+              signal: controller.signal,
               headers: {
                 'Content-Type': 'application/json',
                 'x-goog-api-key': GEMINI_API_KEY
@@ -444,7 +450,14 @@
                   thinkingConfig: { thinkingLevel: 'low' }  // Gemini 3.x: thinkingBudget 대신 thinkingLevel 사용 (빠른 응답)
                 }
               })
-            });
+              });
+            } catch (e) {
+              if (e.name === 'AbortError') throw new Error(`[${model}] 응답 시간 초과 (20초)`);
+              throw e;
+            } finally {
+              clearTimeout(timer);
+            }
+            console.log(`[${model}] 응답 수신 (HTTP ${response.status})`);
 
             const data = await response.json();
 
