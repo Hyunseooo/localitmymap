@@ -150,10 +150,10 @@
 
   <script>
     // ⚠️ 새로 발급받은 Gemini API 키를 여기에 넣으세요. (Google AI Studio에서 발급, 도메인 제한 필수)
-    const GEMINI_API_KEY = "AQ.Ab8RN6JEIc_7HI8GgM55v4tTFinJUyl-YEAVfJ5wrICNMM0RZQ";
+    const GEMINI_API_KEY = "YOUR_NEW_GEMINI_API_KEY";
 
     // 종료된 구형 모델 제거 → 현재 지원되는 모델만 사용 (앞 모델 실패 시 다음 모델로 자동 전환)
-    const GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.7-flash"];
+    const GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"];
 
     let kakaoMap = null;
     let placeSearchService = null;
@@ -422,67 +422,62 @@
 
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-    // 모델을 순서대로 시도하고, 실패 시 "가장 먼저 발생한 진짜 오류"를 보여줌
+    // 모델을 순서대로 시도합니다. 혼잡(429/503)하면 한 번만 재시도하고 바로 다음 모델로 넘어갑니다.
     async function callGemini(promptText) {
-      let firstError = null;
+      const errors = [];
 
       for (const model of GEMINI_MODELS) {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+        const generationConfig = { responseMimeType: 'application/json' };
+        // Flash-Lite 모델은 기본 설정으로 호출 (thinkingLevel 호환 문제 방지)
+        if (!model.includes('lite')) generationConfig.thinkingConfig = { thinkingLevel: 'low' };
 
         for (let attempt = 0; attempt < 2; attempt++) {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 20000); // 20초 넘으면 중단
           try {
             console.log(`[${model}] 요청 시작 (시도 ${attempt + 1})`);
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 20000); // 20초 넘으면 중단
-            let response;
-            try {
-              response = await fetch(url, {
+            const response = await fetch(url, {
               method: 'POST',
               signal: controller.signal,
-              headers: {
-                'Content-Type': 'application/json',
-                'x-goog-api-key': GEMINI_API_KEY
-              },
+              headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
               body: JSON.stringify({
                 contents: [{ role: 'user', parts: [{ text: promptText }] }],
-                generationConfig: {
-                  responseMimeType: 'application/json',   // JSON만 출력하도록 강제
-                  thinkingConfig: { thinkingLevel: 'low' }  // Gemini 3.x: thinkingBudget 대신 thinkingLevel 사용 (빠른 응답)
-                }
+                generationConfig
               })
-              });
-            } catch (e) {
-              if (e.name === 'AbortError') throw new Error(`[${model}] 응답 시간 초과 (20초)`);
-              throw e;
-            } finally {
-              clearTimeout(timer);
-            }
+            });
             console.log(`[${model}] 응답 수신 (HTTP ${response.status})`);
-
             const data = await response.json();
 
             if (data.error) {
-              const err = new Error(`[${model}] ${data.error.message}`);
-              firstError = firstError || err;
+              errors.push(`[${model}] ${data.error.message}`);
               console.warn(`[${model}] 시도 ${attempt + 1} 실패 (${response.status}):`, data.error.message);
 
-              // 429(사용량 제한), 503(과부하)는 잠시 후 재시도
-              if (response.status === 429 || response.status === 503) {
-                await sleep(1000 * (attempt + 1));
+              // 혼잡(429/503)은 1.5초 뒤 한 번 더, 그래도 안 되면 다음 모델로
+              if ((response.status === 429 || response.status === 503) && attempt === 0) {
+                await sleep(1500);
                 continue;
               }
-              break; // 그 외 오류는 다음 모델로
+              break;
             }
-
             return data;
           } catch (err) {
-            firstError = firstError || err;
-            await sleep(1000);
+            const msg = err.name === 'AbortError' ? '응답 시간 초과 (20초)' : err.message;
+            errors.push(`[${model}] ${msg}`);
+            console.warn(`[${model}] 시도 ${attempt + 1} 예외:`, msg);
+            break; // 시간 초과/네트워크 오류는 다음 모델로
+          } finally {
+            clearTimeout(timer);
           }
         }
       }
 
-      throw firstError || new Error('AI 응답이 지연되고 있습니다. 다시 시도해 주세요.');
+      const busy = errors.some(e => /high demand|overloaded|quota|exceeded/i.test(e));
+      const summary = busy
+        ? 'AI 서버가 일시적으로 혼잡합니다. 잠시 후 다시 시도해 주세요.'
+        : 'AI 응답을 받지 못했습니다.';
+      console.error('모든 모델 실패:', errors);
+      throw new Error(`${summary}<br><small>${errors.map(escapeHtml).join('<br>')}</small>`);
     }
 
     async function processChatWithGemini(userQuery) {
@@ -534,7 +529,7 @@ Output ONLY a raw JSON object with NO markdown formatting, NO backticks, and NO 
       } catch (error) {
         console.error("Gemini API Error:", error);
         loadingBubble.remove();
-        appendMessage(`⚠️ AI 응답 오류: ${escapeHtml(error.message || '잠시 후 다시 시도해 주세요.')}`, 'bot');
+        appendMessage(`⚠️ ${error.message || '잠시 후 다시 시도해 주세요.'}`, 'bot');
       } finally {
         isChatBusy = false;
         document.getElementById('chatSendBtn').disabled = false;
