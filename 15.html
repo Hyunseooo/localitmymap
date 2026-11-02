@@ -12,28 +12,28 @@
     body, html { width: 100%; height: 100%; font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; overflow: hidden; }
     .container { display: flex; width: 100vw; height: 100vh; position: relative; }
 
-    .sidebar { flex: 1; min-width: 280px; max-width: 360px; background-color: #f7f5eb; border-right: 1px solid #e4e6dc; display: flex; flex-direction: column; z-index: 10; }
+    .sidebar { flex: 1; min-width: 280px; max-width: 360px; background-color: #f7f5eb; border-right: 1px solid #e4e9df; display: flex; flex-direction: column; z-index: 10; }
     .sidebar-header { padding: 18px 16px; background-color: #365f50; color: #fff; font-weight: bold; font-size: 1.2rem; text-align: center; letter-spacing: 1px; }
     .sidebar-header span { color: #dce7d9; }
 
-    .tabs { display: flex; background-color: #fff; border-bottom: 1px solid #dce7d9; }
+    .tabs { display: flex; background-color: #fff; border-bottom: 1px solid #dce5d9; }
     .tab-button { flex: 1; padding: 12px 0; border: none; background-color: #fff; cursor: pointer; font-size: 0.88rem; color: #365f50; transition: all 0.2s ease; }
-    .tab-button:hover { background-color: #eef3ea; }
-    .tab-button.active { font-weight: bold; color: #264b3d; border-bottom: 3px solid #365f50; background-color: #f7f5eb; }
+    .tab-button:hover { background-color: #edf3e9; }
+    .tab-button.active { font-weight: bold; color: #000; border-bottom: 3px solid #365f50; background-color: #f7f5eb; }
 
     .district-box { padding: 10px 12px 0 12px; background-color: #fff; }
     .district-select { width: 100%; padding: 8px 10px; border: 1px solid #cbd8ca; border-radius: 4px; outline: none; font-size: 0.88rem; background-color: #f7f5eb; color: #263e35; cursor: pointer; }
     .district-select:focus { border-color: #365f50; }
 
-    .search-box { display: flex; padding: 10px 12px; background-color: #fff; border-bottom: 1px solid #dce7d9; gap: 8px; }
+    .search-box { display: flex; padding: 10px 12px; background-color: #fff; border-bottom: 1px solid #dce5d9; gap: 8px; }
     .search-input { flex: 1; padding: 8px 12px; border: 1px solid #cbd8ca; border-radius: 4px; outline: none; font-size: 0.9rem; }
     .search-input:focus { border-color: #365f50; }
     .search-button { padding: 8px 14px; background-color: #365f50; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem; }
 
-    .result-summary { padding: 8px 12px; font-size: 0.8rem; color: #778579; background-color: #e4e6dc; border-bottom: 1px solid #dce7d9; }
+    .result-summary { padding: 8px 12px; font-size: 0.8rem; color: #6c757d; background-color: #e4e9df; border-bottom: 1px solid #dce5d9; }
     .place-list { flex: 1; overflow-y: auto; padding: 10px; }
-    .place-item { padding: 12px; margin-bottom: 8px; background-color: #fff; border: 1px solid #e4e6dc; border-radius: 6px; cursor: pointer; transition: background-color 0.2s ease; }
-    .place-item:hover { background-color: #eef3ea; }
+    .place-item { padding: 12px; margin-bottom: 8px; background-color: #fff; border: 1px solid #e4e9df; border-radius: 6px; cursor: pointer; transition: background-color 0.2s ease; }
+    .place-item:hover { background-color: #edf3e9; }
     .place-title { font-weight: bold; font-size: 0.95rem; margin-bottom: 4px; color: #263e35; }
     .place-address { font-size: 0.82rem; color: #778579; }
 
@@ -43,15 +43,15 @@
     /* 챗봇 UI 스타일 */
     .chat-toggle-btn { position: absolute; bottom: 25px; right: 25px; width: 60px; height: 60px; border-radius: 50%; background-color: #365f50; color: #dce7d9; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.25); cursor: pointer; font-size: 26px; z-index: 100; display: flex; align-items: center; justify-content: center; transition: transform 0.2s ease; }
     .chat-toggle-btn:hover { transform: scale(1.08); }
-    .chat-window { position: absolute; bottom: 95px; right: 25px; width: 360px; max-width: calc(100% - 50px); height: 500px; background-color: #fff; border-radius: 12px; box-shadow: 0 5px 25px rgba(0,0,0,0.2); display: none; flex-direction: column; z-index: 100; overflow: hidden; border: 1px solid #e4e6dc; }
+    .chat-window { position: absolute; bottom: 95px; right: 25px; width: 360px; max-width: calc(100% - 50px); height: 500px; background-color: #fff; border-radius: 12px; box-shadow: 0 5px 25px rgba(0,0,0,0.2); display: none; flex-direction: column; z-index: 100; overflow: hidden; border: 1px solid #e4e9df; }
     .chat-header { background-color: #365f50; color: #fff; padding: 14px 16px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; font-size: 0.95rem; }
     .chat-header span { color: #dce7d9; }
     .chat-close-btn { background: none; border: none; color: #fff; font-size: 18px; cursor: pointer; }
     .chat-messages { flex: 1; padding: 12px; overflow-y: auto; background-color: #f7f5eb; display: flex; flex-direction: column; gap: 10px; }
     .chat-bubble { max-width: 88%; padding: 10px 12px; border-radius: 10px; font-size: 0.85rem; line-height: 1.4; word-break: break-word; }
-    .chat-bubble.bot { background-color: #fff; color: #263e35; align-self: flex-start; border: 1px solid #dce7d9; border-top-left-radius: 2px; }
+    .chat-bubble.bot { background-color: #fff; color: #263e35; align-self: flex-start; border: 1px solid #dce5d9; border-top-left-radius: 2px; }
     .chat-bubble.user { background-color: #365f50; color: #fff; align-self: flex-end; border-top-right-radius: 2px; }
-    .chat-input-area { display: flex; padding: 10px; background-color: #fff; border-top: 1px solid #dce7d9; gap: 6px; }
+    .chat-input-area { display: flex; padding: 10px; background-color: #fff; border-top: 1px solid #dce5d9; gap: 6px; }
     .chat-input { flex: 1; padding: 8px 10px; border: 1px solid #cbd8ca; border-radius: 4px; outline: none; font-size: 0.85rem; }
     .chat-send-btn { padding: 8px 12px; background-color: #365f50; color: #dce7d9; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 0.85rem; }
     .chat-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -376,7 +376,7 @@
           <div style="margin-bottom: 4px; color: #555;">📍 ${address}</div>
           <div style="margin-bottom: 8px; color: #777; font-size: 11px;">📞 ${phone}</div>
           <div style="text-align: right;">
-            <a href="${place.place_url}" target="_blank" style="display: inline-block; padding: 4px 8px; background-color: #dce7d9; color: #365f50; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 11px;">상세보기 ➔</a>
+            <a href="${place.place_url}" target="_blank" style="display: inline-block; padding: 4px 8px; background-color: #365f50; color: #ffffff; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 11px;">상세보기 ➔</a>
           </div>
         </div>
       `;
@@ -405,6 +405,39 @@
       processChatWithGemini(text);
     }
 
+    // 챗봇 대화 기록만 브라우저에 누적 저장합니다.
+    const LOCALIT_CHAT_HISTORY_KEY = 'localit-chat-history-v1';
+    function saveChatHistory() {
+      try {
+        const container = document.getElementById('chatMessages');
+        const messages = Array.from(container.querySelectorAll('.chat-bubble'))
+          .filter(el => !el.dataset.chatLoading)
+          .map(el => ({
+            sender: el.classList.contains('user') ? 'user' : 'bot',
+            content: el.classList.contains('user') ? el.textContent : el.innerHTML
+          }));
+        localStorage.setItem(LOCALIT_CHAT_HISTORY_KEY, JSON.stringify(messages));
+      } catch (e) { console.warn('대화 기록 저장 실패:', e); }
+    }
+    function restoreChatHistory() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(LOCALIT_CHAT_HISTORY_KEY) || 'null');
+        if (!Array.isArray(saved) || !saved.length) return;
+        const container = document.getElementById('chatMessages');
+        container.innerHTML = '';
+        saved.forEach(entry => {
+          if (!entry || (entry.sender !== 'user' && entry.sender !== 'bot') || typeof entry.content !== 'string') return;
+          const bubble = document.createElement('div');
+          bubble.className = 'chat-bubble ' + entry.sender;
+          if (entry.sender === 'user') bubble.textContent = entry.content;
+          else bubble.innerHTML = entry.content;
+          container.appendChild(bubble);
+        });
+        container.scrollTop = container.scrollHeight;
+      } catch (e) { console.warn('대화 기록 복원 실패:', e); }
+    }
+    document.addEventListener('DOMContentLoaded', restoreChatHistory);
+
     function appendMessage(msg, sender) {
       const container = document.getElementById('chatMessages');
       const bubble = document.createElement('div');
@@ -413,6 +446,8 @@
       else bubble.innerHTML = msg;
       container.appendChild(bubble);
       container.scrollTop = container.scrollHeight;
+      if (msg === "✨ AI가 질문을 분석 중입니다...") bubble.dataset.chatLoading = 'true';
+      else saveChatHistory();
       return bubble;
     }
 
@@ -569,10 +604,10 @@ Output ONLY a raw JSON object with NO markdown formatting, NO backticks, and NO 
 
           accumulatedPlaces.slice(0, 2).forEach((p, idx) => {
             botResponse += `
-              <div style="margin-top:6px; padding:8px; background:#eef3ea; border-radius:6px; border:1px solid #dce7d9;">
+              <div style="margin-top:6px; padding:8px; background:#f1f3f5; border-radius:6px; border:1px solid #dee2e6;">
                 <b>${idx + 1}. ${p.place_name}</b><br>
                 <span style="font-size:11px; color:#666;">📍 ${p.road_address_name || p.address_name}</span><br>
-                <a href="${p.place_url}" target="_blank" style="font-size:11px; color:#365f50; font-weight:bold; text-decoration:none;">상세보기 ➔</a>
+                <a href="${p.place_url}" target="_blank" style="font-size:11px; color:#3c1e1e; font-weight:bold; text-decoration:none;">상세보기 ➔</a>
               </div>
             `;
           });
