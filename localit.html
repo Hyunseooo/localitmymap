@@ -408,13 +408,10 @@
   </div>
 
   <script>
-    // 도메인 제한 설정이 완료된 Gemini API 키 적용
-    // (노출된 키라면 Google AI Studio에서 새로 발급해서 이 자리에 교체하세요)
     const GEMINI_API_KEY = "AQ.Ab8RN6IX04aaW1ri5pQ2Ocz6MBkYQ8Fd1pGJw_q-eXEfBarIPA";
 
-    // 사용할 Gemini 모델 목록 (앞에서부터 시도, 모델이 없으면(404) 다음 모델로 자동 전환)
-    // gemini-flash-latest 는 항상 최신 Flash 모델을 가리키는 별칭이라 모델 교체에 강합니다.
-    const GEMINI_MODELS = ["gemini-flash-latest", "gemini-2.5-flash"];
+    // 유효한 Gemini 모델명으로 수정
+    const GEMINI_MODELS = ["gemini-1.5-flash", "gemini-2.0-flash"];
 
     let kakaoMap = null;
     let placeSearchService = null;
@@ -722,7 +719,7 @@
       infoWindow.open(kakaoMap, marker);
     }
 
-    /* ================= Gemini AI 연동 챗봇 로직 (gemini-flash-latest + JSON 강제 + 모델 자동 전환) ================= */
+    /* ================= Gemini AI 연동 챗봇 로직 ================= */
     function toggleChatWindow() {
       const chatWin = document.getElementById('chatWindow');
       chatWin.style.display = (chatWin.style.display === 'flex') ? 'none' : 'flex';
@@ -748,11 +745,10 @@
       const bubble = document.createElement('div');
       bubble.className = `chat-bubble ${sender}`;
       bubble.innerHTML = msg;
-      container.appendChild(풍선껌);
+      container.appendChild(bubble); // '풍선껌' -> 'bubble' 오타 수정 완료
       container.scrollTop = container.scrollHeight;
     }
 
-    // Gemini 호출: 모델 목록을 순서대로 시도하고, 모델을 찾을 수 없을 때(404)만 다음 모델로 넘어갑니다.
     async function callGemini(promptText) {
       let lastError = null;
 
@@ -766,7 +762,6 @@
             contents: [
               { role: 'user', parts: [{ text: promptText }] }
             ],
-            // AI가 JSON만 출력하도록 강제 (JSON.parse 오류 방지)
             generationConfig: { responseMimeType: "application/json" }
           })
         });
@@ -791,16 +786,7 @@
     async function processChatWithGemini(userQuery) {
       appendMessage("✨ AI가 질문을 분석 중입니다...", 'bot');
 
-      const systemPrompt = `
-You are a helpful local map assistant for Goyang-si, South Korea.
-Analyze the user's Korean query and extract search intentions.
-Output ONLY a raw JSON object with NO markdown formatting, NO backticks, and NO extra text:
-{
-  "district": "extracted district name in Goyang (e.g., 식사동, 화정동, 정발산동) or null",
-  "keyword": "core keyword for Kakao map search (e.g., 김밥, 카페, 파스타) or null",
-  "aiComment": "Friendly 1-2 sentence recommendation message in Korean summarizing why these places match their intent."
-}
-      `;
+      const systemPrompt = `You are a helpful local map assistant for Goyang-si, South Korea.Analyze the user's Korean query and extract search intentions.Output ONLY a raw JSON object with NO markdown formatting, NO backticks, and NO extra text:{  "district": "extracted district name in Goyang (e.g., 식사동, 화정동, 정발산동) or null",  "keyword": "core keyword for Kakao map search (e.g., 김밥, 카페, 파스타) or null",  "aiComment": "Friendly 1-2 sentence recommendation message in Korean summarizing why these places match their intent."}`;
 
       try {
         const data = await callGemini(`${systemPrompt}\n\nUser Query: "${userQuery}"`);
