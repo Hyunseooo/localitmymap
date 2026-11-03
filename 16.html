@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LOCALIT 지도 & AI 챗봇 (Gemini 연동)</title>
+  <!-- 카카오맵 JavaScript API (services 라이브러리 포함) -->
+  <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=b3c1b3d89c3faba562c87e2765978f03&libraries=services"></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body, html { width: 100%; height: 100%; font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; overflow: hidden; }
+    .container { display: flex; width: 100vw; height: 100vh; position: relative; }
+
+    .sidebar { flex: 1; min-width: 280px; max-width: 360px; background-color: #f7f5eb; border-right: 1px solid #e4e9df; display: flex; flex-direction: column; z-index: 10; }
+    .sidebar-header { padding: 18px 16px; background-color: #365f50; color: #fff; font-weight: bold; font-size: 1.2rem; text-align: center; letter-spacing: 1px; }
+    .sidebar-header span { color: #dce7d9; }
+
+    .tabs { display: flex; background-color: #fff; border-bottom: 1px solid #dce5d9; }
+    .tab-button { flex: 1; padding: 12px 0; border: none; background-color: #fff; cursor: pointer; font-size: 0.88rem; color: #365f50; transition: all 0.2s ease; }
+    .tab-button:hover { background-color: #edf3e9; }
+    .tab-button.active { font-weight: bold; color: #000; border-bottom: 3px solid #365f50; background-color: #f7f5eb; }
+
+    .district-box { padding: 10px 12px 0 12px; background-color: #fff; }
+    .district-select { width: 100%; padding: 8px 10px; border: 1px solid #cbd8ca; border-radius: 4px; outline: none; font-size: 0.88rem; background-color: #f7f5eb; color: #263e35; cursor: pointer; }
+    .district-select:focus { border-color: #365f50; }
+
+    .search-box { display: flex; padding: 10px 12px; background-color: #fff; border-bottom: 1px solid #dce5d9; gap: 8px; }
+    .search-input { flex: 1; padding: 8px 12px; border: 1px solid #cbd8ca; border-radius: 4px; outline: none; font-size: 0.9rem; }
+    .search-input:focus { border-color: #365f50; }
+    .search-button { padding: 8px 14px; background-color: #365f50; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem; }
+
+    .result-summary { padding: 8px 12px; font-size: 0.8rem; color: #6c757d; background-color: #e4e9df; border-bottom: 1px solid #dce5d9; }
+    .place-list { flex: 1; overflow-y: auto; padding: 10px; }
+    .place-item { padding: 12px; margin-bottom: 8px; background-color: #fff; border: 1px solid #e4e9df; border-radius: 6px; cursor: pointer; transition: background-color 0.2s ease; }
+    .place-item:hover { background-color: #edf3e9; }
+    .place-title { font-weight: bold; font-size: 0.95rem; margin-bottom: 4px; color: #263e35; }
+    .place-address { font-size: 0.82rem; color: #778579; }
+
+    .map-container { flex: 3; height: 100%; position: relative; }
+    #map { width: 100%; height: 100%; }
+
+    /* 챗봇 UI 스타일 */
+    .chat-toggle-btn { position: absolute; bottom: 25px; right: 25px; width: 60px; height: 60px; border-radius: 50%; background-color: #365f50; color: #dce7d9; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.25); cursor: pointer; font-size: 26px; z-index: 100; display: flex; align-items: center; justify-content: center; transition: transform 0.2s ease; }
+    .chat-toggle-btn:hover { transform: scale(1.08); }
+    .chat-window { position: absolute; bottom: 95px; right: 25px; width: 360px; max-width: calc(100% - 50px); height: min(500px, calc(100% - 115px)); min-height: 180px; background-color: #fff; border-radius: 12px; box-shadow: 0 5px 25px rgba(0,0,0,0.2); display: none; flex-direction: column; z-index: 100; overflow: hidden; border: 1px solid #e4e9df; }
+    .chat-header { background-color: #365f50; color: #fff; padding: 14px 16px; cursor: grab; user-select: none; touch-action: none; flex-shrink: 0; font-weight: bold; display: flex; justify-content: space-between; align-items: center; font-size: 0.95rem; }
+    .chat-header span { color: #dce7d9; }
+    .chat-close-btn { background: none; border: none; color: #fff; font-size: 18px; cursor: pointer; }
+    .chat-messages { flex: 1; padding: 12px; overflow-y: auto; background-color: #f7f5eb; display: flex; flex-direction: column; gap: 10px; }
+    .chat-bubble { max-width: 88%; padding: 10px 12px; border-radius: 10px; font-size: 0.85rem; line-height: 1.4; word-break: break-word; }
+    .chat-bubble.bot { background-color: #fff; color: #263e35; align-self: flex-start; border: 1px solid #dce5d9; border-top-left-radius: 2px; }
+    .chat-bubble.user { background-color: #365f50; color: #fff; align-self: flex-end; border-top-right-radius: 2px; }
+    .chat-input-area { display: flex; flex-shrink: 0; padding: 10px; background-color: #fff; border-top: 1px solid #dce5d9; gap: 6px; }
+    .chat-input { flex: 1; padding: 8px 10px; border: 1px solid #cbd8ca; border-radius: 4px; outline: none; font-size: 0.85rem; }
+    .chat-send-btn { padding: 8px 12px; background-color: #365f50; color: #dce7d9; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 0.85rem; }
+    .chat-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="sidebar">
+      <div class="sidebar-header">📍 <span>LOCALIT</span> 지도</div>
+
+      <div class="tabs">
+        <button class="tab-button active" onclick="selectTab('식당')">식당</button>
+        <button class="tab-button" onclick="selectTab('카페')">카페</button>
+        <button class="tab-button" onclick="selectTab('소품샵')">소품샵</button>
+        <button class="tab-button" onclick="selectTab('서점')">서점</button>
+      </div>
+
+      <div class="district-box">
+        <select id="districtSelect" class="district-select" onchange="handleDistrictChange()">
+          <option value="전체">고양시 전체</option>
+          <optgroup label="덕양구">
+            <option value="화정동">덕양구 화정동</option>
+            <option value="행신동">덕양구 행신동</option>
+            <option value="삼송동">덕양구 삼송동</option>
+            <option value="원흥동">덕양구 원흥동</option>
+            <option value="지축동">덕양구 지축동</option>
+            <option value="원당동">덕양구 원당동</option>
+            <option value="향동동">덕양구 향동동</option>
+            <option value="덕은동">덕양구 덕은동</option>
+            <option value="주교동">덕양구 주교동</option>
+            <option value="성사동">덕양구 성사동</option>
+            <option value="신원동">덕양구 신원동</option>
+            <option value="고양동">덕양구 고양동</option>
+            <option value="관산동">덕양구 관산동</option>
+            <option value="도내동">덕양구 도내동</option>
+            <option value="동산동">덕양구 동산동</option>
+          </optgroup>
+          <optgroup label="일산동구">
+            <option value="장항동">일산동구 장항동 (라페스타/웨돔)</option>
+            <option value="정발산동">일산동구 정발산동 (밤리단길)</option>
+            <option value="백석동">일산동구 백석동</option>
+            <option value="마두동">일산동구 마두동</option>
+            <option value="중산동">일산동구 중산동</option>
+            <option value="식사동">일산동구 식사동</option>
+            <option value="풍동">일산동구 풍동</option>
+            <option value="성석동">일산동구 성석동</option>
+          </optgroup>
+          <optgroup label="일산서구">
+            <option value="가좌동">일산서구 가좌동</option>
+            <option value="주엽동">일산서구 주엽동</option>
+            <option value="대화동">일산서구 대화동 (킨텍스)</option>
+            <option value="탄현동">일산서구 탄현동</option>
+            <option value="덕이동">일산서구 덕이동</option>
+            <option value="일산동">일산서구 일산동</option>
+            <option value="구산동">일산서구 구산동</option>
+            <option value="법곳동">일산서구 법곳동</option>
+          </optgroup>
+        </select>
+      </div>
+
+      <div class="search-box">
+        <input type="text" id="searchInput" class="search-input" placeholder="장소/키워드 입력 (선택)" onkeyup="handleKeyPress(event)">
+        <button class="search-button" onclick="executeSearch()">검색</button>
+      </div>
+
+      <div id="resultSummary" class="result-summary">검색 진행 중...</div>
+      <div id="placeList" class="place-list"></div>
+    </div>
+
+    <div class="map-container">
+      <div id="map"></div>
+
+      <!-- 챗봇 UI -->
+      <button class="chat-toggle-btn" onclick="toggleChatWindow()">🤖</button>
+
+      <div id="chatWindow" class="chat-window">
+        <div class="chat-header">
+          <span>✨ LOCALIT AI 가이드</span>
+          <button class="chat-close-btn" onclick="toggleChatWindow()">✕</button>
+        </div>
+        <div id="chatMessages" class="chat-messages">
+          <div class="chat-bubble bot">
+            안녕하세요! AI 가이드입니다. 🖐️<br><br>
+            자연어로 편하게 물어보세요!<br>
+            • "식사동 평점 높고 평 좋은 김밥집 추천해줘"<br>
+            • "밤리단길 데이트하기 좋은 카페 알려줘"
+          </div>
+        </div>
+        <div class="chat-input-area">
+          <input type="text" id="chatInput" class="chat-input" placeholder="원하는 장소를 자유롭게 물어보세요..." onkeyup="handleChatKeyPress(event)">
+          <button id="chatSendBtn" class="chat-send-btn" onclick="sendChatMessage()">전송</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ⚠️ 새로 발급받은 Gemini API 키를 여기에 넣으세요. (Google AI Studio에서 발급, 도메인 제한 필수)
+    const GEMINI_API_KEY = "AQ.Ab8RN6JEIc_7HI8GgM55v4tTFinJUyl-YEAVfJ5wrICNMM0RZQ";
+
+    // 종료된 구형 모델 제거 → 현재 지원되는 모델만 사용 (앞 모델 실패 시 다음 모델로 자동 전환)
+    const GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"];
+
+    let kakaoMap = null;
+    let placeSearchService = null;
+    let infoWindow = null;
+    let currentCategory = '식당';
+    let mapMarkers = [];
+    let accumulatedPlaces = [];
+    let isDistrictChanging = false;
+    let isChatBusy = false;
+
+    const districtCoordinates = {
+      '전체': { lat: 37.6583599, lng: 126.8320001, level: 7 },
+      '화정동': { lat: 37.6353, lng: 126.8322, level: 4 },
+      '행신동': { lat: 37.6148, lng: 126.8341, level: 4 },
+      '삼송동': { lat: 37.6521, lng: 126.8953, level: 4 },
+      '원흥동': { lat: 37.6499, lng: 126.8722, level: 4 },
+      '지축동': { lat: 37.6534, lng: 126.9082, level: 4 },
+      '원당동': { lat: 37.6698, lng: 126.8521, level: 5 },
+      '향동동': { lat: 37.6001, lng: 126.8988, level: 4 },
+      '덕은동': { lat: 37.5852, lng: 126.8831, level: 4 },
+      '주교동': { lat: 37.6562, lng: 126.8083, level: 4 },
+      '성사동': { lat: 37.6541, lng: 126.8371, level: 4 },
+      '신원동': { lat: 37.6685, lng: 126.8872, level: 4 },
+      '고양동': { lat: 37.7011, lng: 126.9025, level: 5 },
+      '관산동': { lat: 37.6961, lng: 126.8611, level: 5 },
+      '도내동': { lat: 37.6322, lng: 126.8621, level: 4 },
+      '동산동': { lat: 37.6433, lng: 126.8922, level: 4 },
+      '장항동': { lat: 37.6582, lng: 126.7712, level: 4 },
+      '정발산동': { lat: 37.6672, lng: 126.7821, level: 4 },
+      '백석동': { lat: 37.6421, lng: 126.7882, level: 4 },
+      '마두동': { lat: 37.6521, lng: 126.7822, level: 4 },
+      '중산동': { lat: 37.6851, lng: 126.7782, level: 4 },
+      '식사동': { lat: 37.6781, lng: 126.8121, level: 4 },
+      '풍동': { lat: 37.6681, lng: 126.7981, level: 4 },
+      '성석동': { lat: 37.6981, lng: 126.7811, level: 5 },
+      '가좌동': { lat: 37.6912, lng: 126.7282, level: 4 },
+      '주엽동': { lat: 37.6701, lng: 126.7611, level: 4 },
+      '대화동': { lat: 37.6761, lng: 126.7481, level: 4 },
+      '탄현동': { lat: 37.6941, lng: 126.7631, level: 4 },
+      '덕이동': { lat: 37.6981, lng: 126.7421, level: 5 },
+      '일산동': { lat: 37.6861, lng: 126.7711, level: 4 },
+      '구산동': { lat: 37.7081, lng: 126.7112, level: 5 },
+      '법곳동': { lat: 37.6681, lng: 126.7321, level: 5 }
+    };
+
+    const categoryColors = { '식당': '#4D96FF', '카페': '#FF6B81', '소품샵': '#FFD93D', '서점': '#6BCB77' };
+
+    const excludeKeywords = ['인테리어', '철물', '커튼', '블라인드', '조명', '설비', '공사', '자재', '원단', '가구', '타일', '지붕', '창호', '샤시', '간판'];
+
+    window.onload = function () { initMap(); };
+
+    function initMap() {
+      kakaoMap = new kakao.maps.Map(document.getElementById('map'), {
+        center: new kakao.maps.LatLng(37.6583599, 126.8320001),
+        level: 5
+      });
+      placeSearchService = new kakao.maps.services.Places();
+      infoWindow = new kakao.maps.InfoWindow({ zIndex: 2, removable: true });
+
+      kakao.maps.event.addListener(kakaoMap, 'click', function () { infoWindow.close(); });
+      kakao.maps.event.addListener(kakaoMap, 'idle', function () {
+        if (!isDistrictChanging) searchPlacesByBounds();
+      });
+
+      searchPlaces();
+    }
+
+    function createCustomMarkerImage(colorHex) {
+      const svgMarker = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="30" height="40" viewBox="0 0 24 32">
+          <path fill="${colorHex}" stroke="#FFFFFF" stroke-width="1.5" d="M12 0C5.37 0 0 5.37 0 12c0 9 12 20 12 20s12-11 12-20c0-6.63-5.37-12-12-12z"/>
+          <circle cx="12" cy="11" r="4.5" fill="#FFFFFF"/>
+        </svg>`;
+      const imageSrc = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgMarker);
+      return new kakao.maps.MarkerImage(imageSrc, new kakao.maps.Size(30, 40), { offset: new kakao.maps.Point(15, 40) });
+    }
+
+    function selectTab(categoryName) {
+      currentCategory = categoryName;
+      document.querySelectorAll('.tab-button').forEach(button => {
+        button.classList.remove('active');
+        if (button.textContent === categoryName) button.classList.add('active');
+      });
+      searchPlaces();
+    }
+
+    function handleDistrictChange() { searchPlaces(); }
+    function handleKeyPress(event) { if (event.key === 'Enter') executeSearch(); }
+    function executeSearch() { searchPlaces(); }
+
+    function searchPlaces() {
+      const selectedDistrict = document.getElementById('districtSelect').value;
+
+      isDistrictChanging = true;
+      infoWindow.close();
+
+      if (selectedDistrict !== '전체' && districtCoordinates[selectedDistrict]) {
+        const coord = districtCoordinates[selectedDistrict];
+        kakaoMap.setLevel(coord.level);
+        kakaoMap.setCenter(new kakao.maps.LatLng(coord.lat, coord.lng));
+      }
+
+      setTimeout(function () {
+        isDistrictChanging = false;
+        searchPlacesByBounds();
+      }, 300);
+    }
+
+    function searchPlacesByBounds() {
+      const searchInput = document.getElementById('searchInput').value.trim();
+
+      removeMarkers();
+      clearPlaceList();
+      accumulatedPlaces = [];
+      document.getElementById('resultSummary').textContent = '현재 화면에서 장소를 검색 중입니다...';
+
+      const searchOptions = { bounds: kakaoMap.getBounds(), useMapBounds: true, size: 15 };
+
+      if (currentCategory === '소품샵' && searchInput === '') {
+        const multiKeywords = ['소품샵', '잡화점', '문구점'];
+        let completedCalls = 0;
+
+        multiKeywords.forEach(keyword => {
+          placeSearchService.keywordSearch(keyword, function (data, status) {
+            completedCalls++;
+            if (status === kakao.maps.services.Status.OK && data) processAndFilterPlaces(data);
+            if (completedCalls === multiKeywords.length) renderFinalResults();
+          }, searchOptions);
+        });
+      } else {
+        const searchKeyword = searchInput !== '' ? searchInput : currentCategory;
+        placeSearchService.keywordSearch(searchKeyword, placesSearchCallback, searchOptions);
+      }
+    }
+
+    function processAndFilterPlaces(data) {
+      data.forEach(place => {
+        if (accumulatedPlaces.some(item => item.id === place.id)) return;
+
+        const categoryName = place.category_name || '';
+        const placeName = place.place_name || '';
+        const isExcluded = excludeKeywords.some(keyword =>
+          categoryName.includes(keyword) || placeName.includes(keyword)
+        );
+
+        if (!isExcluded) accumulatedPlaces.push(place);
+      });
+    }
+
+    function placesSearchCallback(data, status, pagination) {
+      if (status === kakao.maps.services.Status.OK && data && data.length > 0) {
+        processAndFilterPlaces(data);
+        if (pagination.hasNextPage && accumulatedPlaces.length < 45) {
+          pagination.nextPage();
+          return;
+        }
+      }
+      renderFinalResults();
+    }
+
+    function renderFinalResults() {
+      if (accumulatedPlaces.length > 0) {
+        document.getElementById('resultSummary').textContent = `현재 지도 화면 내 장소 ${accumulatedPlaces.length}곳 발견`;
+        displayPlaceList(accumulatedPlaces);
+        displayMarkers(accumulatedPlaces);
+      } else {
+        document.getElementById('resultSummary').textContent = `현재 지도 화면 내 검색 결과가 없습니다.`;
+        clearPlaceList();
+        removeMarkers();
+      }
+    }
+
+    function displayPlaceList(places) {
+      const listContainer = document.getElementById('placeList');
+      clearPlaceList();
+
+      places.forEach((place, index) => {
+        const itemElement = document.createElement('div');
+        itemElement.className = 'place-item';
+        itemElement.innerHTML = `
+          <div class="place-title">${index + 1}. ${place.place_name}</div>
+          <div class="place-address">${place.road_address_name || place.address_name}</div>
+        `;
+        itemElement.onclick = function () {
+          kakaoMap.panTo(new kakao.maps.LatLng(place.y, place.x));
+          openInfoWindow(mapMarkers[index], place);
+        };
+        listContainer.appendChild(itemElement);
+      });
+    }
+
+    function clearPlaceList() { document.getElementById('placeList').innerHTML = ''; }
+
+    function displayMarkers(places) {
+      const markerImage = createCustomMarkerImage(categoryColors[currentCategory] || '#4D96FF');
+
+      places.forEach(place => {
+        const marker = new kakao.maps.Marker({
+          position: new kakao.maps.LatLng(place.y, place.x),
+          image: markerImage,
+          map: kakaoMap
+        });
+        kakao.maps.event.addListener(marker, 'click', function () { openInfoWindow(marker, place); });
+        mapMarkers.push(marker);
+      });
+    }
+
+    function removeMarkers() {
+      mapMarkers.forEach(marker => marker.setMap(null));
+      mapMarkers = [];
+    }
+
+    function openInfoWindow(marker, place) {
+      const address = place.road_address_name || place.address_name;
+      const phone = place.phone ? place.phone : '전화번호 정보 없음';
+
+      const content = `
+        <div style="padding: 12px; font-size: 12px; line-height: 1.5; min-width: 200px; max-width: 240px; color: #333;">
+          <div style="font-weight: bold; font-size: 14px; color: #365f50; margin-bottom: 6px; border-bottom: 1px solid #eee; padding-bottom: 4px;">${place.place_name}</div>
+          <div style="margin-bottom: 4px; color: #555;">📍 ${address}</div>
+          <div style="margin-bottom: 8px; color: #777; font-size: 11px;">📞 ${phone}</div>
+          <div style="text-align: right;">
+            <a href="${place.place_url}" target="_blank" style="display: inline-block; padding: 4px 8px; background-color: #365f50; color: #ffffff; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 11px;">상세보기 ➔</a>
+          </div>
+        </div>
+      `;
+
+      infoWindow.setContent(content);
+      infoWindow.open(kakaoMap, marker);
+    }
+
+    /* ================= Gemini AI 연동 챗봇 로직 ================= */
+    function toggleChatWindow() {
+      const chatWin = document.getElementById('chatWindow');
+      chatWin.style.display = (chatWin.style.display === 'flex') ? 'none' : 'flex';
+    }
+
+    // 챗봇 헤더를 잡아 이동할 수 있습니다. 지도·검색·대화 저장 로직은 변경하지 않습니다.
+    (function enableChatDragging() {
+      const panel = document.getElementById('chatWindow');
+      const header = panel.querySelector('.chat-header');
+      const mapArea = panel.parentElement;
+      let start = null;
+      header.addEventListener('pointerdown', (event) => {
+        if (event.target.closest('button') || event.button !== 0) return;
+        const panelRect = panel.getBoundingClientRect();
+        const areaRect = mapArea.getBoundingClientRect();
+        panel.style.left = (panelRect.left - areaRect.left) + 'px';
+        panel.style.top = (panelRect.top - areaRect.top) + 'px';
+        panel.style.right = 'auto';
+        panel.style.bottom = 'auto';
+        start = { x: event.clientX, y: event.clientY, left: panel.offsetLeft, top: panel.offsetTop };
+        header.setPointerCapture(event.pointerId);
+        header.style.cursor = 'grabbing';
+      });
+      header.addEventListener('pointermove', (event) => {
+        if (!start) return;
+        const maxX = Math.max(0, mapArea.clientWidth - panel.offsetWidth);
+        const maxY = Math.max(0, mapArea.clientHeight - panel.offsetHeight);
+        panel.style.left = Math.max(0, Math.min(maxX, start.left + event.clientX - start.x)) + 'px';
+        panel.style.top = Math.max(0, Math.min(maxY, start.top + event.clientY - start.y)) + 'px';
+      });
+      function endDrag() { start = null; header.style.cursor = ''; }
+      header.addEventListener('pointerup', endDrag);
+      header.addEventListener('pointercancel', endDrag);
+    })();
+
+    function handleChatKeyPress(e) { if (e.key === 'Enter') sendChatMessage(); }
+
+    function sendChatMessage() {
+      if (isChatBusy) return;
+
+      const inputEl = document.getElementById('chatInput');
+      const text = inputEl.value.trim();
+      if (!text) return;
+
+      appendMessage(text, 'user');
+      inputEl.value = '';
+      processChatWithGemini(text);
+    }
+
+    // 챗봇 대화 기록만 브라우저에 누적 저장합니다.
+    const LOCALIT_CHAT_HISTORY_KEY = 'localit-chat-history-v1';
+    function saveChatHistory() {
+      try {
+        const container = document.getElementById('chatMessages');
+        const messages = Array.from(container.querySelectorAll('.chat-bubble'))
+          .filter(el => !el.dataset.chatLoading)
+          .map(el => ({
+            sender: el.classList.contains('user') ? 'user' : 'bot',
+            content: el.classList.contains('user') ? el.textContent : el.innerHTML
+          }));
+        localStorage.setItem(LOCALIT_CHAT_HISTORY_KEY, JSON.stringify(messages));
+      } catch (e) { console.warn('대화 기록 저장 실패:', e); }
+    }
+    function restoreChatHistory() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(LOCALIT_CHAT_HISTORY_KEY) || 'null');
+        if (!Array.isArray(saved) || !saved.length) return;
+        const container = document.getElementById('chatMessages');
+        container.innerHTML = '';
+        saved.forEach(entry => {
+          if (!entry || (entry.sender !== 'user' && entry.sender !== 'bot') || typeof entry.content !== 'string') return;
+          const bubble = document.createElement('div');
+          bubble.className = 'chat-bubble ' + entry.sender;
+          if (entry.sender === 'user') bubble.textContent = entry.content;
+          else bubble.innerHTML = entry.content;
+          container.appendChild(bubble);
+        });
+        container.scrollTop = container.scrollHeight;
+      } catch (e) { console.warn('대화 기록 복원 실패:', e); }
+    }
+    document.addEventListener('DOMContentLoaded', restoreChatHistory);
+
+    function appendMessage(msg, sender) {
+      const container = document.getElementById('chatMessages');
+      const bubble = document.createElement('div');
+      bubble.className = `chat-bubble ${sender}`;
+      if (sender === 'user') bubble.textContent = msg;  // 사용자 입력은 텍스트로 (HTML 주입 방지)
+      else bubble.innerHTML = msg;
+      container.appendChild(bubble);
+      container.scrollTop = container.scrollHeight;
+      if (msg === "✨ AI가 질문을 분석 중입니다...") bubble.dataset.chatLoading = 'true';
+      else saveChatHistory();
+      return bubble;
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    // 모델을 순서대로 시도합니다. 혼잡(429/503)하면 한 번만 재시도하고 바로 다음 모델로 넘어갑니다.
+    async function callGemini(promptText) {
+      const errors = [];
+
+      for (const model of GEMINI_MODELS) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+        const generationConfig = { responseMimeType: 'application/json' };
+        // Flash-Lite 모델은 기본 설정으로 호출 (thinkingLevel 호환 문제 방지)
+        if (!model.includes('lite')) generationConfig.thinkingConfig = { thinkingLevel: 'low' };
+
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 35000); // 35초 넘으면 중단
+          try {
+            console.log(`[${model}] 요청 시작 (시도 ${attempt + 1})`);
+            const response = await fetch(url, {
+              method: 'POST',
+              signal: controller.signal,
+              headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
+              body: JSON.stringify({
+                contents: [{ role: 'user', parts: [{ text: promptText }] }],
+                generationConfig
+              })
+            });
+            console.log(`[${model}] 응답 수신 (HTTP ${response.status})`);
+            const data = await response.json();
+
+            if (data.error) {
+              errors.push(`[${model}] ${data.error.message}`);
+              console.warn(`[${model}] 시도 ${attempt + 1} 실패 (${response.status}):`, data.error.message);
+
+              // 혼잡(429/503)은 1.5초 뒤 한 번 더, 그래도 안 되면 다음 모델로
+              if ((response.status === 429 || response.status === 503) && attempt === 0) {
+                await sleep(1500);
+                continue;
+              }
+              break;
+            }
+            return data;
+          } catch (err) {
+            const msg = err.name === 'AbortError' ? '응답 시간 초과 (35초)' : err.message;
+            errors.push(`[${model}] ${msg}`);
+            console.warn(`[${model}] 시도 ${attempt + 1} 예외:`, msg);
+            break; // 시간 초과/네트워크 오류는 다음 모델로
+          } finally {
+            clearTimeout(timer);
+          }
+        }
+      }
+
+      const busy = errors.some(e => /high demand|overloaded|quota|exceeded/i.test(e));
+      const summary = busy
+        ? 'AI 서버가 일시적으로 혼잡합니다. 잠시 후 다시 시도해 주세요.'
+        : 'AI 응답을 받지 못했습니다.';
+      console.error('모든 모델 실패:', errors);
+      throw new Error(`${summary}<br><small>${errors.map(escapeHtml).join('<br>')}</small>`);
+    }
+
+    async function processChatWithGemini(userQuery) {
+      isChatBusy = true;
+      document.getElementById('chatSendBtn').disabled = true;
+      const loadingBubble = appendMessage("✨ AI가 질문을 분석 중입니다...", 'bot');
+
+      const systemPrompt = `You are a helpful local map assistant for Goyang-si, South Korea.
+Analyze the user's Korean query and extract search intentions.
+Output ONLY a raw JSON object with NO markdown formatting, NO backticks, and NO extra text:
+{
+  "district": "extracted district name in Goyang (e.g., 식사동, 화정동, 정발산동) or null",
+  "keyword": "core keyword for Kakao map search (e.g., 김밥, 카페, 파스타) or null",
+  "aiComment": "Friendly 1-2 sentence recommendation message in Korean summarizing why these places match their intent."
+}`;
+
+      try {
+        if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_NEW_GEMINI_API_KEY") {
+          throw new Error('Gemini API 키가 설정되지 않았습니다. 코드 상단의 GEMINI_API_KEY를 확인해 주세요.');
+        }
+
+        const data = await callGemini(`${systemPrompt}\n\nUser Query: "${userQuery}"`);
+
+        const candidateText = data.candidates && data.candidates[0] &&
+          data.candidates[0].content && data.candidates[0].content.parts &&
+          data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
+
+        if (!candidateText) {
+          throw new Error('AI가 응답을 생성하지 못했습니다. 다시 시도해 주세요.');
+        }
+
+        const aiRawText = candidateText.replace(/```json|```/g, '').trim();
+
+        let parsedData = {};
+        try {
+          parsedData = JSON.parse(aiRawText);
+        } catch (e) {
+          parsedData = { district: null, keyword: userQuery, aiComment: "요청하신 장소를 찾아드릴게요!" };
+        }
+
+        // "null" 문자열로 오는 경우도 방어
+        const district = (parsedData.district && parsedData.district !== 'null') ? parsedData.district : null;
+        const keyword = (parsedData.keyword && parsedData.keyword !== 'null') ? parsedData.keyword : (userQuery || "맛집");
+        const aiComment = parsedData.aiComment || "검색 결과를 정리해 드릴게요!";
+
+        loadingBubble.remove();
+        executeKakaoMapSearchFromAI(district, keyword, aiComment);
+
+      } catch (error) {
+        console.error("Gemini API Error:", error);
+        loadingBubble.remove();
+        appendMessage(`⚠️ ${error.message || '잠시 후 다시 시도해 주세요.'}`, 'bot');
+      } finally {
+        isChatBusy = false;
+        document.getElementById('chatSendBtn').disabled = false;
+      }
+    }
+
+    function executeKakaoMapSearchFromAI(district, keyword, aiComment) {
+      let fullKeyword = "고양시 ";
+
+      if (district) {
+        fullKeyword += `${district} `;
+        const select = document.getElementById('districtSelect');
+        if (districtCoordinates[district]) select.value = district;
+
+        if (districtCoordinates[district]) {
+          const coord = districtCoordinates[district];
+          kakaoMap.setLevel(coord.level);
+          kakaoMap.setCenter(new kakao.maps.LatLng(coord.lat, coord.lng));
+        }
+      } else {
+        const currentDist = document.getElementById('districtSelect').value;
+        if (currentDist !== '전체') fullKeyword += `${currentDist} `;
+      }
+      fullKeyword += keyword;
+
+      removeMarkers();
+      clearPlaceList();
+      accumulatedPlaces = [];
+
+      placeSearchService.keywordSearch(fullKeyword, function (data, status) {
+        if (status === kakao.maps.services.Status.OK && data && data.length > 0) {
+          processAndFilterPlaces(data);
+          renderFinalResults();
+
+          let botResponse = `✨ <b>AI 가이드</b><br>${escapeHtml(aiComment)}<br><br>`;
+          botResponse += `📍 <b>추천 장소 Top 2</b><br>`;
+
+          accumulatedPlaces.slice(0, 2).forEach((p, idx) => {
+            botResponse += `
+              <div style="margin-top:6px; padding:8px; background:#f1f3f5; border-radius:6px; border:1px solid #dee2e6;">
+                <b>${idx + 1}. ${p.place_name}</b><br>
+                <span style="font-size:11px; color:#666;">📍 ${p.road_address_name || p.address_name}</span><br>
+                <a href="${p.place_url}" target="_blank" style="font-size:11px; color:#3c1e1e; font-weight:bold; text-decoration:none;">상세보기 ➔</a>
+              </div>
+            `;
+          });
+
+          appendMessage(botResponse, 'bot');
+        } else {
+          appendMessage(`😢 '${escapeHtml(fullKeyword)}' 장소를 찾지 못했어요. 다른 단어로 물어봐 주세요!`, 'bot');
+        }
+      });
+    }
+  </script>
+</body>
+</html>
