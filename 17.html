@@ -626,8 +626,25 @@ Output ONLY a raw JSON object with NO markdown formatting, NO backticks, and NO 
 
       placeSearchService.keywordSearch(fullKeyword, function (data, status) {
         if (status === kakao.maps.services.Status.OK && data && data.length > 0) {
-          processAndFilterPlaces(data);
+          // AI 검색 결과는 요청한 동네와 음식 종류가 실제로 일치하는 장소만 표시합니다.
+          const targetDistrict = district || (document.getElementById('districtSelect').value !== '전체'
+            ? document.getElementById('districtSelect').value : null);
+          const foodKeyword = String(keyword || '').trim();
+          const matchedPlaces = data.filter(p => {
+            const address = `${p.address_name || ''} ${p.road_address_name || ''}`;
+            const name = p.place_name || '';
+            const category = p.category_name || '';
+            if (targetDistrict && !address.includes(targetDistrict)) return false;
+            // 김밥집을 물었는데 횟집 등 다른 음식점이 추천되는 것을 방지
+            if (/김밥/.test(foodKeyword) && !/김밥|분식/.test(name + ' ' + category)) return false;
+            return true;
+          });
+          processAndFilterPlaces(matchedPlaces);
           renderFinalResults();
+          if (!accumulatedPlaces.length) {
+            appendMessage(`😢 '${escapeHtml(fullKeyword)}'에 정확히 맞는 장소를 찾지 못했어요. 다른 검색어로 다시 물어봐 주세요!`, 'bot');
+            return;
+          }
 
           let botResponse = `✨ <b>AI 가이드</b><br>${escapeHtml(aiComment)}<br><br>`;
           botResponse += `📍 <b>추천 장소 Top 2</b><br>`;
